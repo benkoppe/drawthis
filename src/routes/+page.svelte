@@ -16,13 +16,13 @@
 	import type { PageData } from './$types';
 
 	let { data }: { data: PageData } = $props();
+	// svelte-ignore state_referenced_locally
+	const initialReferences = data.references;
 
-	// svelte-ignore state_referenced_locally
-	let currentReference = $state<DrawingReference | undefined>(data.references[0]);
-	// svelte-ignore state_referenced_locally
-	let referenceQueue = $state<DrawingReference[]>(data.references.slice(1));
+	let currentReference = $state<DrawingReference | undefined>(initialReferences[0]);
+	let referenceQueue = $state<DrawingReference[]>(initialReferences.slice(1));
 	let seenReferenceIds = $state<string[]>([]);
-	let preloadedReferenceIds = $state<string[]>([]);
+	let preloadedReferenceIds: string[] = [];
 	let isReady = $state(false);
 	let isLoadingReference = $state(false);
 	let isRefillingQueue = $state(false);
@@ -72,12 +72,10 @@
 		}
 	}
 
-	function rememberReferences(
-		...referenceIdSources: readonly (readonly (string | undefined)[])[]
-	): void {
+	function rememberReferences(referenceIds: readonly (string | undefined)[]): void {
 		seenReferenceIds = mergeRecentReferenceIds(
 			seenReferenceIds,
-			...referenceIdSources.map((source) => source.filter((id): id is string => id !== undefined))
+			referenceIds.filter((id): id is string => id !== undefined)
 		);
 		writeStoredRecentReferenceIds(seenReferenceIds);
 	}
@@ -108,7 +106,7 @@
 				continue;
 			}
 
-			preloadedReferenceIds = mergeRecentReferenceIds(preloadedReferenceIds, [reference.id]);
+			preloadedReferenceIds = [...preloadedReferenceIds, reference.id];
 			void preloadImage(resolveReferenceUrl(reference.image.url)).catch(() => {
 				// A failed speculative preload should not block advancing to the reference.
 			});

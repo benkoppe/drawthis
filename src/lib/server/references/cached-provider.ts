@@ -47,8 +47,13 @@ async function getCachedResult(
 	key: string,
 	options: { allowStale: boolean }
 ): Promise<ProviderSearchResult | undefined> {
-	const entry = options.allowStale ? await cache.getStale(key) : await cache.get(key);
-	return entry?.result;
+	try {
+		const entry = options.allowStale ? await cache.getStale(key) : await cache.get(key);
+		return entry?.result;
+	} catch (cause) {
+		console.warn('Reference search cache read failed', cause);
+		return undefined;
+	}
 }
 
 async function searchAndCacheProvider(
@@ -62,19 +67,24 @@ async function searchAndCacheProvider(
 
 	if (metadataTtlSeconds > 0) {
 		const now = getNow();
-		await cache.set(
-			key,
-			{
-				version: 1,
-				providerId: provider.id,
-				request,
-				result,
-				cachedAt: now,
-				expiresAt: now + metadataTtlSeconds * 1000,
-				staleUntil: now + (metadataTtlSeconds + defaultStaleTtlSeconds) * 1000
-			},
-			{ ttlSeconds: metadataTtlSeconds, staleTtlSeconds: defaultStaleTtlSeconds }
-		);
+
+		try {
+			await cache.set(
+				key,
+				{
+					version: 1,
+					providerId: provider.id,
+					request,
+					result,
+					cachedAt: now,
+					expiresAt: now + metadataTtlSeconds * 1000,
+					staleUntil: now + (metadataTtlSeconds + defaultStaleTtlSeconds) * 1000
+				},
+				{ ttlSeconds: metadataTtlSeconds, staleTtlSeconds: defaultStaleTtlSeconds }
+			);
+		} catch (cause) {
+			console.warn('Reference search cache write failed', cause);
+		}
 	}
 
 	return result;

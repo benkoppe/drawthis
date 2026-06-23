@@ -1,20 +1,71 @@
 <script lang="ts">
-	import { asset } from '$app/paths';
-	import { getNextReferenceIndex, localReferences } from '$lib/references';
+	import { asset, base } from '$app/paths';
+	import type { DrawingReference, ReferenceFeedResponse } from '$lib/references';
 	import { onMount } from 'svelte';
+	import type { PageData } from './$types';
 
-	let currentReferenceIndex = $state(0);
+	let { data }: { data: PageData } = $props();
+
+	let loadedReference = $state<DrawingReference | undefined>();
+	let seenReferenceIds = $state<string[]>([]);
 	let isReady = $state(false);
-	let currentReference = $derived(localReferences[currentReferenceIndex]);
-	let currentImageUrl = $derived(asset(currentReference.imageUrl));
-	let currentSourceUrl = $derived(asset(currentReference.sourceUrl));
+	let isLoadingReference = $state(false);
+	let errorMessage = $state<string | undefined>();
+	let currentReference = $derived(loadedReference ?? data.references[0]);
+	let currentImageUrl = $derived(
+		currentReference ? resolveReferenceUrl(currentReference.image.url) : ''
+	);
+	let currentSourceUrl = $derived(
+		currentReference ? resolveReferenceUrl(currentReference.attribution.sourceUrl) : ''
+	);
+	let canAdvance = $derived(isReady && !isLoadingReference);
 
 	onMount(() => {
 		isReady = true;
 	});
 
-	function showNextReference() {
-		currentReferenceIndex = getNextReferenceIndex(currentReferenceIndex, localReferences.length);
+	function resolveReferenceUrl(url: string): string {
+		return url.startsWith('/') ? asset(url) : url;
+	}
+
+	async function showNextReference() {
+		if (!canAdvance) {
+			return;
+		}
+
+		isLoadingReference = true;
+		errorMessage = undefined;
+
+		const currentReferenceId = currentReference?.id;
+		const recentReferenceIds = currentReferenceId
+			? [...seenReferenceIds, currentReferenceId].slice(-50)
+			: seenReferenceIds;
+
+		try {
+			const response = await fetch(`${base}/api/references`, {
+				method: 'POST',
+				headers: { 'content-type': 'application/json' },
+				body: JSON.stringify({ count: 1, recentReferenceIds })
+			});
+
+			if (!response.ok) {
+				throw new Error('Could not load the next reference.');
+			}
+
+			const feed = (await response.json()) as ReferenceFeedResponse;
+			const [nextReference] = feed.references;
+
+			if (!nextReference) {
+				throw new Error('No references are available right now.');
+			}
+
+			loadedReference = nextReference;
+			seenReferenceIds = recentReferenceIds;
+		} catch (cause) {
+			errorMessage = cause instanceof Error ? cause.message : 'Could not load the next reference.';
+		} finally {
+			isLoadingReference = false;
+		}
 	}
 </script>
 
@@ -29,27 +80,39 @@
 	</header>
 
 	<section class="practice-loop" aria-labelledby="reference-heading">
-		<div class="reference-toolbar" aria-live="polite">
-			<div class="reference-controls">
-				<div class="reference-meta">
-					<h1 id="reference-heading">{currentReference.title}</h1>
-					<p>{currentReference.category}</p>
+		{#if currentReference}
+			<div class="reference-toolbar" aria-live="polite">
+				<div class="reference-controls">
+					<div class="reference-meta">
+						<h1 id="reference-heading">{currentReference.title}</h1>
+						<p>{currentReference.category}</p>
+					</div>
+
+					<button type="button" disabled={!canAdvance} onclick={showNextReference}>
+						{isLoadingReference ? 'Loading…' : 'Next reference'}
+					</button>
 				</div>
 
-				<button type="button" disabled={!isReady} onclick={showNextReference}>Next reference</button
-				>
+				{#if errorMessage}
+					<p class="reference-error">{errorMessage}</p>
+				{/if}
 			</div>
-		</div>
 
-		<figure>
-			<img src={currentImageUrl} alt={currentReference.alt} />
+			<figure>
+				<img src={currentImageUrl} alt={currentReference.image.alt} />
 
-			<figcaption>
-				<span>{currentReference.credit}</span>
-				<!-- eslint-disable-next-line svelte/no-navigation-without-resolve -->
-				<a href={currentSourceUrl}>Open source image</a>
-			</figcaption>
-		</figure>
+				<figcaption>
+					<span>{currentReference.attribution.label}</span>
+					<!-- eslint-disable-next-line svelte/no-navigation-without-resolve -->
+					<a href={currentSourceUrl}>Open source image</a>
+				</figcaption>
+			</figure>
+		{:else}
+			<div class="empty-state" aria-live="polite">
+				<h1 id="reference-heading">No references available</h1>
+				<p>Try again later.</p>
+			</div>
+		{/if}
 	</section>
 </main>
 
@@ -137,9 +200,14 @@
 		min-width: 0;
 	}
 
-	.reference-meta p {
+	.reference-meta p,
+	.reference-error {
 		margin-bottom: 0;
 		font-size: 0.875rem;
+	}
+
+	.reference-error {
+		color: #991b1b;
 	}
 
 	button {
@@ -198,6 +266,10 @@
 	a {
 		color: #111827;
 		text-underline-offset: 0.2em;
+	}
+
+	.empty-state {
+		padding: 12px;
 	}
 
 	@media (max-width: 640px) {

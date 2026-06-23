@@ -1,3 +1,13 @@
-export { localReferences } from './catalog';
-export { getNextReferenceIndex } from './selection';
-export type { DrawingReference, ReferenceCategory } from './types';
+export {
+	isReferenceCategory,
+	referenceCategories,
+	referenceCategoryLabels,
+	type ReferenceCategory
+} from './categories';
+export type {
+	DrawingReference,
+	ReferenceFeedRequest,
+	ReferenceFeedResponse,
+	ReferenceOrientation,
+	ReferenceProviderId
+} from './types';

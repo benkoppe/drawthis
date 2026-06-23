@@ -7,7 +7,7 @@ import {
 } from '$lib/references';
 import { createReferenceFeedPlan, type PlannedProviderSearch } from './feed-planner';
 import type { ReferenceFeedPolicy } from './feed-policy';
-import type { ReferenceProvider } from './provider';
+import type { ProviderSearchResult, ReferenceProvider } from './provider';
 import { referenceProviders } from './providers';
 
 export interface ReferenceFeedOptions {
@@ -105,7 +105,14 @@ async function searchForReferences(
 	let order = 0;
 
 	for (const search of searches) {
-		const result = await search.provider.search(search.request);
+		let result: ProviderSearchResult;
+
+		try {
+			result = await search.provider.search(search.request);
+		} catch (cause) {
+			console.warn(`Reference provider "${search.provider.id}" failed`, cause);
+			continue;
+		}
 
 		for (const reference of result.references) {
 			if (rankedReferences.has(reference.id)) {

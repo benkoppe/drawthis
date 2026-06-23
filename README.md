@@ -2,7 +2,7 @@
 
 DrawThis is a fast drawing-reference practice tool. It brings a reference image to the user immediately so they can practice visual replication without searching, curating, or deciding what to draw next.
 
-The current app uses a small local mock reference set. External image provider integration, attribution rules, caching, and stronger variety selection belong to later milestones.
+The app always includes a small local fallback reference set. It can also use Openverse as a server-side external image provider when enabled with environment variables.
 
 ## Development
 
@@ -23,6 +23,22 @@ Start the development server:
 ```sh
 pnpm dev
 ```
+
+### External image provider setup
+
+Openverse is disabled by default so local development and tests never spend public API quota accidentally. To try real external references locally, enable it server-side:
+
+```sh
+DRAWTHIS_OPENVERSE_ENABLED=true pnpm dev
+```
+
+Optional override for tests against a local/mock Openverse-compatible endpoint:
+
+```sh
+DRAWTHIS_OPENVERSE_ENABLED=true DRAWTHIS_OPENVERSE_API_BASE_URL=http://localhost:8788/v1 pnpm dev
+```
+
+Openverse anonymous API limits are low; keep local fallback enabled and avoid committing secrets or provider credentials to the browser.
 
 Run type and Svelte checks:
 

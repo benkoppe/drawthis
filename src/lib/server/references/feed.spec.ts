@@ -1,6 +1,6 @@
 import type { DrawingReference, ReferenceCategory } from '$lib/references';
 import type { ProviderSearchRequest, ProviderSearchResult, ReferenceProvider } from './provider';
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import { getReferenceFeed } from './feed';
 import { localReferenceProvider } from './providers/local';
 
@@ -166,6 +166,29 @@ describe('getReferenceFeed', () => {
 		);
 
 		expect(feed.references[0]?.id).toBe('test:available');
+	});
+
+	it('continues to local fallback when an external provider fails', async () => {
+		const providerError = new Error('upstream unavailable');
+		const warning = vi.spyOn(console, 'warn').mockImplementation(() => {});
+		const failingProvider = makeProvider(
+			() => {
+				throw providerError;
+			},
+			{ id: 'failing' }
+		);
+
+		try {
+			const feed = await getReferenceFeed(
+				{ count: 1, preferences: { enabledCategories: ['still-life'] } },
+				{ providers: [failingProvider, localReferenceProvider], random: () => 0 }
+			);
+
+			expect(feed.references[0]?.id).toBe('local:still-life');
+			expect(warning).toHaveBeenCalledWith('Reference provider "failing" failed', providerError);
+		} finally {
+			warning.mockRestore();
+		}
 	});
 
 	it('restricts references to enabled category preferences', async () => {

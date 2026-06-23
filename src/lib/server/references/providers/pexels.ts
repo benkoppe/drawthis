@@ -5,6 +5,13 @@ import {
 } from '$lib/references';
 import type { PexelsProviderConfig } from '$lib/server/config';
 import type { ProviderSearchRequest, ProviderSearchResult, ReferenceProvider } from '../provider';
+import {
+	getNonEmptyString,
+	getPositiveInteger,
+	getPositiveNumber,
+	isRecord,
+	normalizePageCursor
+} from './parsing';
 
 const pexelsProviderId = 'pexels';
 const pexelsProviderName = 'Pexels';
@@ -46,31 +53,6 @@ interface PexelsSearchResponse {
 
 export interface PexelsReferenceProviderOptions extends PexelsProviderConfig {
 	fetch?: FetchFunction;
-}
-
-function isRecord(value: unknown): value is Record<string, unknown> {
-	return value !== null && typeof value === 'object' && !Array.isArray(value);
-}
-
-function getNonEmptyString(record: Record<string, unknown>, key: string): string | undefined {
-	const value = record[key];
-
-	if (typeof value !== 'string') {
-		return undefined;
-	}
-
-	const trimmed = value.trim();
-	return trimmed.length > 0 ? trimmed : undefined;
-}
-
-function getPositiveNumber(record: Record<string, unknown>, key: string): number | undefined {
-	const value = record[key];
-
-	return typeof value === 'number' && Number.isFinite(value) && value > 0 ? value : undefined;
-}
-
-function getPositiveInteger(value: unknown): number | undefined {
-	return typeof value === 'number' && Number.isInteger(value) && value > 0 ? value : undefined;
 }
 
 function getPhotoId(record: Record<string, unknown>): string | undefined {
@@ -179,22 +161,13 @@ function getSearchQuery(request: ProviderSearchRequest): string {
 	return query;
 }
 
-function getRequestedPage(cursor: string | undefined): string {
-	if (cursor === undefined) {
-		return '1';
-	}
-
-	const page = Number.parseInt(cursor, 10);
-	return Number.isInteger(page) && page > 0 ? String(page) : '1';
-}
-
 function buildPexelsSearchUrl(config: PexelsProviderConfig, request: ProviderSearchRequest): URL {
 	const apiBaseUrl = config.apiBaseUrl.replace(/\/$/, '');
 	const url = new URL(`${apiBaseUrl}/search`);
 
 	url.searchParams.set('query', getSearchQuery(request));
 	url.searchParams.set('per_page', String(request.count));
-	url.searchParams.set('page', getRequestedPage(request.cursor));
+	url.searchParams.set('page', normalizePageCursor(request.cursor));
 
 	if (request.orientation !== undefined && request.orientation !== 'any') {
 		url.searchParams.set('orientation', request.orientation);

@@ -5,6 +5,14 @@ import {
 } from '$lib/references';
 import type { OpenverseProviderConfig } from '$lib/server/config';
 import type { ProviderSearchRequest, ProviderSearchResult, ReferenceProvider } from '../provider';
+import {
+	getBoolean,
+	getNonEmptyString,
+	getPositiveInteger,
+	getPositiveNumber,
+	isRecord,
+	normalizePageCursor
+} from './parsing';
 
 const openverseProviderId = 'openverse';
 const openverseProviderName = 'Openverse';
@@ -37,37 +45,6 @@ interface OpenverseSearchResponse {
 
 export interface OpenverseReferenceProviderOptions extends OpenverseProviderConfig {
 	fetch?: FetchFunction;
-}
-
-function isRecord(value: unknown): value is Record<string, unknown> {
-	return value !== null && typeof value === 'object' && !Array.isArray(value);
-}
-
-function getNonEmptyString(record: Record<string, unknown>, key: string): string | undefined {
-	const value = record[key];
-
-	if (typeof value !== 'string') {
-		return undefined;
-	}
-
-	const trimmed = value.trim();
-	return trimmed.length > 0 ? trimmed : undefined;
-}
-
-function getPositiveNumber(record: Record<string, unknown>, key: string): number | undefined {
-	const value = record[key];
-
-	return typeof value === 'number' && Number.isFinite(value) && value > 0 ? value : undefined;
-}
-
-function getBoolean(record: Record<string, unknown>, key: string): boolean | undefined {
-	const value = record[key];
-
-	return typeof value === 'boolean' ? value : undefined;
-}
-
-function parseOpenversePage(value: unknown): number | undefined {
-	return typeof value === 'number' && Number.isInteger(value) && value > 0 ? value : undefined;
 }
 
 function parseOpenverseImage(value: unknown): OpenverseImage | undefined {
@@ -110,8 +87,8 @@ function parseOpenverseSearchResponse(value: unknown): OpenverseSearchResponse {
 			const image = parseOpenverseImage(result);
 			return image ? [image] : [];
 		}),
-		page: parseOpenversePage(value.page),
-		pageCount: parseOpenversePage(value.page_count)
+		page: getPositiveInteger(value.page),
+		pageCount: getPositiveInteger(value.page_count)
 	};
 }
 
@@ -129,15 +106,6 @@ function toAspectRatio(request: ProviderSearchRequest): OpenverseAspectRatio | u
 	}
 }
 
-function getRequestedPage(cursor: string | undefined): string {
-	if (cursor === undefined) {
-		return '1';
-	}
-
-	const page = Number.parseInt(cursor, 10);
-	return Number.isInteger(page) && page > 0 ? String(page) : '1';
-}
-
 function buildOpenverseSearchUrl(
 	config: OpenverseProviderConfig,
 	request: ProviderSearchRequest
@@ -148,7 +116,7 @@ function buildOpenverseSearchUrl(
 
 	url.searchParams.set('format', 'json');
 	url.searchParams.set('page_size', String(request.count));
-	url.searchParams.set('page', getRequestedPage(request.cursor));
+	url.searchParams.set('page', normalizePageCursor(request.cursor));
 	url.searchParams.set('mature', 'false');
 	url.searchParams.set('category', 'photograph');
 

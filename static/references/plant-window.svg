@@ -1,0 +1,14 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 800" role="img" aria-labelledby="title desc">
+	<title id="title">Simple plant by window reference</title>
+	<desc id="desc">Line drawing of a potted plant on a low table in front of a window with curtains.</desc>
+	<rect width="1200" height="800" fill="#f7f7f4" />
+	<rect x="310" y="90" width="580" height="430" fill="#fff" stroke="#1f2933" stroke-width="9" />
+	<path d="M600 90v430M310 305h580" stroke="#1f2933" stroke-width="6" />
+	<path d="M235 75c75 120 75 320 0 470M965 75c-75 120-75 320 0 470" fill="none" stroke="#6b7280" stroke-width="10" />
+	<path d="M250 610h700" stroke="#1f2933" stroke-width="9" />
+	<path d="M365 610l-55 120M835 610l55 120" stroke="#1f2933" stroke-width="8" />
+	<path d="M505 500h190l-30 130H535z" fill="#fff" stroke="#1f2933" stroke-width="9" stroke-linejoin="round" />
+	<path d="M600 500V255" stroke="#1f2933" stroke-width="8" stroke-linecap="round" />
+	<path d="M600 345c-100-15-150-70-150-165 95 5 145 60 150 165zM605 350c100-35 165-5 195 90-90 28-155-2-195-90zM595 430c-95 25-160-5-195-95 88-32 155 0 195 95zM610 275c55-90 125-120 210-88-42 82-112 112-210 88z" fill="#fff" stroke="#1f2933" stroke-width="8" stroke-linejoin="round" />
+	<path d="M550 555h100M540 590h120" stroke="#6b7280" stroke-width="5" />
+</svg>

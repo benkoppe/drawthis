@@ -1,0 +1,16 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 800" role="img" aria-labelledby="title desc">
+	<title id="title">Simple street corner reference</title>
+	<desc id="desc">Line drawing of a city street corner with buildings, sidewalk, crosswalk, and a parked car.</desc>
+	<rect width="1200" height="800" fill="#f7f7f4" />
+	<path d="M90 620h1020" stroke="#1f2933" stroke-width="8" />
+	<path d="M460 620L320 780M735 620l130 160" stroke="#6b7280" stroke-width="6" />
+	<path d="M70 150h285v470H70zM845 105h285v515H845z" fill="#fff" stroke="#1f2933" stroke-width="8" />
+	<path d="M355 250l245-90 245 90v370H355z" fill="#fff" stroke="#1f2933" stroke-width="8" />
+	<path d="M115 205h75v75h-75zM235 205h75v75h-75zM115 330h75v75h-75zM235 330h75v75h-75zM890 170h75v75h-75zM1010 170h75v75h-75zM890 300h75v75h-75zM1010 300h75v75h-75z" fill="#e5e7eb" stroke="#1f2933" stroke-width="5" />
+	<path d="M445 315h95v85h-95zM635 315h95v85h-95zM535 505h110v115H535z" fill="#e5e7eb" stroke="#1f2933" stroke-width="6" />
+	<path d="M430 690h90M565 690h90M700 690h90M835 690h90" stroke="#1f2933" stroke-width="7" />
+	<path d="M175 590c20-60 65-90 135-90h120c50 0 95 35 115 90z" fill="#fff" stroke="#1f2933" stroke-width="8" />
+	<circle cx="275" cy="590" r="35" fill="#f7f7f4" stroke="#1f2933" stroke-width="8" />
+	<circle cx="455" cy="590" r="35" fill="#f7f7f4" stroke="#1f2933" stroke-width="8" />
+	<path d="M155 505h35v115h-35zM130 505h85" stroke="#1f2933" stroke-width="7" />
+</svg>

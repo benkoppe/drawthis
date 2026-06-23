@@ -1,0 +1,19 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 800" role="img" aria-labelledby="title desc">
+	<title id="title">Simple room interior reference</title>
+	<desc id="desc">Line drawing of a room corner with a table, chair, window, lamp, and framed picture.</desc>
+	<rect width="1200" height="800" fill="#f7f7f4" />
+	<path d="M180 120h820v540H180z" fill="#fff" stroke="#1f2933" stroke-width="8" />
+	<path d="M180 120l170 110h640M180 660l170-120h640" fill="none" stroke="#6b7280" stroke-width="5" />
+	<path d="M350 230v310" stroke="#6b7280" stroke-width="5" />
+	<rect x="710" y="180" width="210" height="170" fill="#e5e7eb" stroke="#1f2933" stroke-width="7" />
+	<path d="M815 180v170M710 265h210" stroke="#1f2933" stroke-width="4" />
+	<rect x="260" y="250" width="170" height="120" fill="#fff" stroke="#1f2933" stroke-width="7" />
+	<path d="M285 330l45-45 38 38 22-24 27 31" fill="none" stroke="#1f2933" stroke-width="5" />
+	<path d="M470 520h330" stroke="#1f2933" stroke-width="9" />
+	<path d="M515 520l-35 120M755 520l35 120" stroke="#1f2933" stroke-width="8" />
+	<rect x="545" y="430" width="160" height="90" fill="#fff" stroke="#1f2933" stroke-width="7" />
+	<path d="M555 640h120M575 640v-155M655 640v-155" stroke="#1f2933" stroke-width="8" />
+	<path d="M925 585v-155" stroke="#1f2933" stroke-width="8" />
+	<path d="M870 430h110l-28-72h-54z" fill="#e5e7eb" stroke="#1f2933" stroke-width="7" />
+	<circle cx="925" cy="342" r="18" fill="#fff" stroke="#1f2933" stroke-width="6" />
+</svg>

@@ -1,42 +1,67 @@
-# sv
+# DrawThis
 
-Everything you need to build a Svelte project, powered by [`sv`](https://github.com/sveltejs/cli).
+DrawThis is a fast drawing-reference practice tool. It brings a reference image to the user immediately so they can practice visual replication without searching, curating, or deciding what to draw next.
 
-## Creating a project
+The current app uses a small local mock reference set. External image provider integration, attribution rules, caching, and stronger variety selection belong to later milestones.
 
-If you're seeing this, you've probably already done this step. Congrats!
+## Development
 
-```sh
-# create a new project
-npx sv create my-app
-```
-
-To recreate this project with the same configuration:
+Development commands assume the Nix dev shell from this repository. If `direnv` is not active, enter it manually:
 
 ```sh
-# recreate this project
-pnpm dlx sv@0.16.1 create --template minimal --types ts --add prettier eslint vitest="usages:unit,component" playwright tailwindcss="plugins:typography" sveltekit-adapter="adapter:cloudflare+cfTarget:workers" mcp="ide:claude-code,opencode+setup:remote" experimental="versions:none+features:async,remoteFunctions,explicitEnvironmentVariables,handleRenderingErrors,forkPreloads" --install pnpm .
+nix develop
 ```
 
-## Developing
-
-Once you've created a project and installed dependencies with `npm install` (or `pnpm install` or `yarn`), start a development server:
+Install dependencies:
 
 ```sh
-npm run dev
-
-# or start the server and open the app in a new browser tab
-npm run dev -- --open
+pnpm install
 ```
 
-## Building
-
-To create a production version of your app:
+Start the development server:
 
 ```sh
-npm run build
+pnpm dev
 ```
 
-You can preview the production build with `npm run preview`.
+Run type and Svelte checks:
 
-> To deploy your app, you may need to install an [adapter](https://svelte.dev/docs/kit/adapters) for your target environment.
+```sh
+pnpm check
+```
+
+Run linting and formatting checks:
+
+```sh
+pnpm lint
+```
+
+Run unit tests once:
+
+```sh
+pnpm test:unit -- --run
+```
+
+Run end-to-end tests:
+
+```sh
+pnpm test:e2e
+```
+
+Playwright uses the Nix-provided browser binaries from the dev shell. Do not run `playwright install` on Nix; those downloaded generic Linux binaries will not run reliably here.
+
+Build for production:
+
+```sh
+pnpm build
+```
+
+Preview the Cloudflare worker build:
+
+```sh
+pnpm preview
+```
+
+## Product Direction
+
+The early interface should stay plain, utilitarian, and focused on the practice loop: see a reference, draw it, advance to the next reference. Decorative UI work is intentionally deferred unless it directly improves clarity, accessibility, or practice speed.

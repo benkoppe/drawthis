@@ -1,0 +1,16 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 800" role="img" aria-labelledby="title desc">
+	<title id="title">Simple still life reference</title>
+	<desc id="desc">Line drawing of a mug, bottle, apple, folded cloth, and spoon on a table.</desc>
+	<rect width="1200" height="800" fill="#f7f7f4" />
+	<path d="M130 610h940" stroke="#1f2933" stroke-width="9" />
+	<path d="M245 610c80-70 205-70 285 0M520 610c95-50 195-45 300 0" fill="none" stroke="#6b7280" stroke-width="6" />
+	<path d="M700 255h105l35 355H665z" fill="#fff" stroke="#1f2933" stroke-width="9" stroke-linejoin="round" />
+	<path d="M720 160h65l20 95H700z" fill="#fff" stroke="#1f2933" stroke-width="9" />
+	<path d="M740 120h38v40h-38z" fill="#fff" stroke="#1f2933" stroke-width="7" />
+	<path d="M330 365h250v180c0 55-43 95-100 95h-50c-57 0-100-40-100-95z" fill="#fff" stroke="#1f2933" stroke-width="9" />
+	<path d="M580 430h45c36 0 62 26 62 63s-26 63-62 63h-45" fill="none" stroke="#1f2933" stroke-width="9" />
+	<path d="M205 620c0-62 48-110 112-110s112 48 112 110z" fill="#fff" stroke="#1f2933" stroke-width="9" />
+	<path d="M300 510c20-45 65-70 120-75" fill="none" stroke="#1f2933" stroke-width="6" />
+	<path d="M880 585c80-85 155-113 225-85" fill="none" stroke="#1f2933" stroke-width="9" stroke-linecap="round" />
+	<ellipse cx="860" cy="606" rx="56" ry="21" fill="#fff" stroke="#1f2933" stroke-width="7" />
+</svg>

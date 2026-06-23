@@ -69,6 +69,8 @@ DRAWTHIS_OPENVERSE_ENABLED=true DRAWTHIS_OPENVERSE_API_BASE_URL=http://localhost
 
 At least one provider must be enabled. Local references are mock/dev assets, not a production-quality fallback. Keep provider credentials server-side and never commit secrets or expose them to the browser.
 
+Provider search metadata is cached server-side through the Cloudflare Cache API when available, with an in-memory fallback for local/dev/test runtimes. DrawThis caches normalized provider results according to each provider's cache policy and does not proxy or cache provider image bytes unless a provider explicitly allows that separately.
+
 Run type and Svelte checks:
 
 ```sh

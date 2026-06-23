@@ -4,6 +4,7 @@ import {
 	type ReferenceCategory
 } from '$lib/references';
 import type { OpenverseProviderConfig } from '$lib/server/config';
+import { parseRetryAfterSeconds, ReferenceProviderHttpError } from '../provider-error';
 import type { ProviderSearchRequest, ProviderSearchResult, ReferenceProvider } from '../provider';
 import {
 	getBoolean,
@@ -237,7 +238,10 @@ async function searchOpenverse(
 	});
 
 	if (!response.ok) {
-		throw new Error(`Openverse search failed with status ${response.status}`);
+		throw new ReferenceProviderHttpError(`Openverse search failed with status ${response.status}`, {
+			status: response.status,
+			retryAfterSeconds: parseRetryAfterSeconds(response.headers.get('retry-after'))
+		});
 	}
 
 	const body: unknown = await response.json();

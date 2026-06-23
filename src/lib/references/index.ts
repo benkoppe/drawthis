@@ -7,8 +7,13 @@ export {
 } from './categories';
 export {
 	defaultReferenceFeedCount,
+	imagePreloadAheadCount,
+	initialReferenceFeedCount,
 	maxRecentReferenceIds,
 	maxReferenceFeedCount,
+	providerReferenceSearchPageSize,
+	referenceQueueLowWatermark,
+	referenceQueueTargetSize,
 	trimRecentReferenceIds
 } from './feed';
 export {

@@ -1,10 +1,13 @@
 import {
 	defaultReferenceFeedCount,
 	maxReferenceFeedCount,
+	providerReferenceSearchPageSize,
 	type DrawingReference,
 	type ReferenceFeedRequest,
 	type ReferenceFeedResponse
 } from '$lib/references';
+import { searchReferenceProvider } from './cached-provider';
+import type { ReferenceSearchCache } from './cache';
 import { createReferenceFeedPlan, type PlannedProviderSearch } from './feed-planner';
 import type { ReferenceFeedPolicy } from './feed-policy';
 import type { ProviderSearchResult, ReferenceProvider } from './provider';
@@ -14,6 +17,7 @@ export interface ReferenceFeedOptions {
 	providers?: readonly ReferenceProvider[];
 	policy?: ReferenceFeedPolicy;
 	random?: () => number;
+	searchCache?: ReferenceSearchCache;
 }
 
 interface ReferenceAvoidancePolicy {
@@ -63,11 +67,8 @@ function getAvoidancePolicy(request: ReferenceFeedRequest): ReferenceAvoidancePo
 	};
 }
 
-function getProviderSearchCount(count: number, avoidancePolicy: ReferenceAvoidancePolicy): number {
-	const avoidedReferenceCount =
-		avoidancePolicy.hardReferenceIds.size + avoidancePolicy.softReferenceIds.size;
-
-	return Math.min(maxReferenceFeedCount + avoidedReferenceCount, count + avoidedReferenceCount);
+function getProviderSearchCount(count: number): number {
+	return Math.max(count, providerReferenceSearchPageSize);
 }
 
 function getReferenceSelectionRank(
@@ -98,7 +99,8 @@ function selectRankedReferences(
 async function searchForReferences(
 	searches: readonly PlannedProviderSearch[],
 	count: number,
-	avoidancePolicy: ReferenceAvoidancePolicy
+	avoidancePolicy: ReferenceAvoidancePolicy,
+	searchCache: ReferenceSearchCache | undefined
 ): Promise<DrawingReference[]> {
 	const rankedReferences = new Map<string, RankedReference>();
 	let preferredReferenceCount = 0;
@@ -108,7 +110,7 @@ async function searchForReferences(
 		let result: ProviderSearchResult;
 
 		try {
-			result = await search.provider.search(search.request);
+			result = await searchReferenceProvider(search.provider, search.request, searchCache);
 		} catch (cause) {
 			console.warn(`Reference provider "${search.provider.id}" failed`, cause);
 			continue;
@@ -148,8 +150,15 @@ export async function getReferenceFeed(
 		providers,
 		policy: options.policy,
 		random: options.random,
-		searchCount: getProviderSearchCount(count, avoidancePolicy)
+		searchCount: getProviderSearchCount(count)
 	});
 
-	return { references: await searchForReferences(plan.searches, count, avoidancePolicy) };
+	return {
+		references: await searchForReferences(
+			plan.searches,
+			count,
+			avoidancePolicy,
+			options.searchCache
+		)
+	};
 }

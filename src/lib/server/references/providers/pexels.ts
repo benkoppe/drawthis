@@ -4,6 +4,7 @@ import {
 	type ReferenceCategory
 } from '$lib/references';
 import type { PexelsProviderConfig } from '$lib/server/config';
+import { parseRetryAfterSeconds, ReferenceProviderHttpError } from '../provider-error';
 import type { ProviderSearchRequest, ProviderSearchResult, ReferenceProvider } from '../provider';
 import {
 	getNonEmptyString,
@@ -272,7 +273,10 @@ async function searchPexels(
 	});
 
 	if (!response.ok) {
-		throw new Error(`Pexels search failed with status ${response.status}`);
+		throw new ReferenceProviderHttpError(`Pexels search failed with status ${response.status}`, {
+			status: response.status,
+			retryAfterSeconds: parseRetryAfterSeconds(response.headers.get('retry-after'))
+		});
 	}
 
 	const body: unknown = await response.json();

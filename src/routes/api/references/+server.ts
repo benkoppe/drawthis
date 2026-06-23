@@ -1,5 +1,6 @@
 import { mergeRecentReferenceIds } from '$lib/references';
 import { readOrCreateReferenceFeedSeedCookie } from '$lib/server/references/feed-seed-cookie';
+import { createReferenceSearchCache } from '$lib/server/references/cache';
 import { parseReferenceFeedRequest } from '$lib/server/references/feed-request';
 import { getReferenceFeed } from '$lib/server/references/feed';
 import {
@@ -10,7 +11,7 @@ import { createSeededRandom } from '$lib/server/references/seeded-random';
 import { error, json } from '@sveltejs/kit';
 import type { RequestHandler } from './$types';
 
-export const POST: RequestHandler = async ({ cookies, request }) => {
+export const POST: RequestHandler = async ({ cookies, platform, request }) => {
 	let body: unknown;
 
 	try {
@@ -30,7 +31,10 @@ export const POST: RequestHandler = async ({ cookies, request }) => {
 		const random = createSeededRandom(
 			`next:${feedSeed}:${parsedRequest.currentReferenceId ?? ''}:${recentReferenceIds.join('\0')}`
 		);
-		const feed = await getReferenceFeed({ ...parsedRequest, recentReferenceIds }, { random });
+		const feed = await getReferenceFeed(
+			{ ...parsedRequest, recentReferenceIds },
+			{ random, searchCache: createReferenceSearchCache(platform) }
+		);
 		const updatedRecentReferenceIds = mergeRecentReferenceIds(
 			recentReferenceIds,
 			feed.references.map((reference) => reference.id)

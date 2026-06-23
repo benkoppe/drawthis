@@ -1,10 +1,13 @@
 <script lang="ts">
 	import { asset, base } from '$app/paths';
 	import {
+		imagePreloadAheadCount,
 		mergeRecentReferenceIds,
 		parseRecentReferenceIds,
 		referenceCategoryLabels,
 		referenceHistoryStorageKey,
+		referenceQueueLowWatermark,
+		referenceQueueTargetSize,
 		requestReferenceFeed,
 		serializeRecentReferenceIds,
 		type DrawingReference
@@ -14,12 +17,16 @@
 
 	let { data }: { data: PageData } = $props();
 
-	let loadedReference = $state<DrawingReference | undefined>();
+	// svelte-ignore state_referenced_locally
+	let currentReference = $state<DrawingReference | undefined>(data.references[0]);
+	// svelte-ignore state_referenced_locally
+	let referenceQueue = $state<DrawingReference[]>(data.references.slice(1));
 	let seenReferenceIds = $state<string[]>([]);
+	let preloadedReferenceIds = $state<string[]>([]);
 	let isReady = $state(false);
 	let isLoadingReference = $state(false);
+	let isRefillingQueue = $state(false);
 	let errorMessage = $state<string | undefined>();
-	let currentReference = $derived(loadedReference ?? data.references[0]);
 	let currentImageUrl = $derived(
 		currentReference ? resolveReferenceUrl(currentReference.image.url) : ''
 	);
@@ -29,15 +36,20 @@
 	let currentCategoryLabel = $derived(
 		currentReference ? referenceCategoryLabels[currentReference.category] : ''
 	);
-	let canAdvance = $derived(isReady && !isLoadingReference);
+	let canAdvance = $derived(
+		isReady && (referenceQueue.length > 0 || (!isLoadingReference && !isRefillingQueue))
+	);
 
 	onMount(() => {
 		seenReferenceIds = mergeRecentReferenceIds(
 			readStoredRecentReferenceIds(),
-			data.recentReferenceIds
+			data.recentReferenceIds,
+			referenceQueue.map((reference) => reference.id)
 		);
 		writeStoredRecentReferenceIds(seenReferenceIds);
 		isReady = true;
+		preloadQueuedImages();
+		void ensureReferenceQueueFilled();
 	});
 
 	function resolveReferenceUrl(url: string): string {
@@ -60,34 +72,120 @@
 		}
 	}
 
+	function rememberReferences(
+		...referenceIdSources: readonly (readonly (string | undefined)[])[]
+	): void {
+		seenReferenceIds = mergeRecentReferenceIds(
+			seenReferenceIds,
+			...referenceIdSources.map((source) => source.filter((id): id is string => id !== undefined))
+		);
+		writeStoredRecentReferenceIds(seenReferenceIds);
+	}
+
+	function setReferenceQueue(nextQueue: DrawingReference[]): void {
+		referenceQueue = nextQueue;
+		preloadQueuedImages();
+	}
+
+	async function preloadImage(url: string): Promise<void> {
+		const image = new Image();
+		image.src = url;
+
+		if (image.decode === undefined) {
+			await new Promise<void>((resolve, reject) => {
+				image.onload = () => resolve();
+				image.onerror = () => reject(new Error('Image preload failed'));
+			});
+			return;
+		}
+
+		await image.decode();
+	}
+
+	function preloadQueuedImages(): void {
+		for (const reference of referenceQueue.slice(0, imagePreloadAheadCount)) {
+			if (preloadedReferenceIds.includes(reference.id)) {
+				continue;
+			}
+
+			preloadedReferenceIds = mergeRecentReferenceIds(preloadedReferenceIds, [reference.id]);
+			void preloadImage(resolveReferenceUrl(reference.image.url)).catch(() => {
+				// A failed speculative preload should not block advancing to the reference.
+			});
+		}
+	}
+
+	async function ensureReferenceQueueFilled(): Promise<void> {
+		if (isRefillingQueue || referenceQueue.length > referenceQueueLowWatermark) {
+			return;
+		}
+
+		isRefillingQueue = true;
+		const currentReferenceId = currentReference?.id;
+
+		try {
+			const requestedCount = Math.max(referenceQueueTargetSize - referenceQueue.length, 1);
+			const feed = await requestReferenceFeed(
+				{ count: requestedCount, currentReferenceId, recentReferenceIds: seenReferenceIds },
+				{ fetch, basePath: base }
+			);
+			const queuedReferenceIds = new Set(referenceQueue.map((reference) => reference.id));
+			const newReferences = feed.references.filter(
+				(reference) => !queuedReferenceIds.has(reference.id) && reference.id !== currentReferenceId
+			);
+
+			if (newReferences.length > 0) {
+				setReferenceQueue([...referenceQueue, ...newReferences]);
+				rememberReferences(newReferences.map((reference) => reference.id));
+			}
+		} catch (cause) {
+			if (referenceQueue.length === 0) {
+				errorMessage = cause instanceof Error ? cause.message : 'Could not load more references.';
+			}
+		} finally {
+			isRefillingQueue = false;
+		}
+	}
+
+	async function loadImmediateFallbackReference(): Promise<DrawingReference | undefined> {
+		const currentReferenceId = currentReference?.id;
+		const feed = await requestReferenceFeed(
+			{ count: 1, currentReferenceId, recentReferenceIds: seenReferenceIds },
+			{ fetch, basePath: base }
+		);
+
+		return feed.references[0];
+	}
+
 	async function showNextReference() {
 		if (!canAdvance) {
 			return;
 		}
 
-		isLoadingReference = true;
 		errorMessage = undefined;
+		const previousReferenceId = currentReference?.id;
+		const [queuedReference, ...remainingQueue] = referenceQueue;
 
-		const currentReferenceId = currentReference?.id;
+		if (queuedReference !== undefined) {
+			currentReference = queuedReference;
+			setReferenceQueue(remainingQueue);
+			rememberReferences([previousReferenceId, queuedReference.id]);
+			void ensureReferenceQueueFilled();
+			return;
+		}
+
+		isLoadingReference = true;
 
 		try {
-			const feed = await requestReferenceFeed(
-				{ count: 1, currentReferenceId, recentReferenceIds: seenReferenceIds },
-				{ fetch, basePath: base }
-			);
-			const [nextReference] = feed.references;
+			const nextReference = await loadImmediateFallbackReference();
 
 			if (!nextReference) {
 				throw new Error('No references are available right now.');
 			}
 
-			loadedReference = nextReference;
-			seenReferenceIds = mergeRecentReferenceIds(
-				seenReferenceIds,
-				currentReferenceId ? [currentReferenceId] : [],
-				[nextReference.id]
-			);
-			writeStoredRecentReferenceIds(seenReferenceIds);
+			currentReference = nextReference;
+			rememberReferences([previousReferenceId, nextReference.id]);
+			void ensureReferenceQueueFilled();
 		} catch (cause) {
 			errorMessage = cause instanceof Error ? cause.message : 'Could not load the next reference.';
 		} finally {

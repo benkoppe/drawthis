@@ -217,7 +217,7 @@ describe('getReferenceFeed', () => {
 		);
 
 		expect(requests[0]).toMatchObject({
-			count: 1,
+			count: 10,
 			category: 'still-life',
 			query: 'mug and bottle still life'
 		});
@@ -240,7 +240,7 @@ describe('getReferenceFeed', () => {
 			{ providers: [provider], random: () => 0 }
 		);
 
-		expect(requests[0]?.count).toBe(4);
+		expect(requests[0]?.count).toBe(10);
 	});
 
 	it('rejects invalid counts', async () => {

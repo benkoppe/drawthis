@@ -2,7 +2,7 @@
 
 DrawThis is a fast drawing-reference practice tool. It brings a reference image to the user immediately so they can practice visual replication without searching, curating, or deciding what to draw next.
 
-The app always includes a small local fallback reference set. It can also use Openverse as a server-side external image provider when enabled with environment variables.
+The app always includes a small local fallback reference set. It can also use Pexels as the preferred server-side external image provider when configured, with optional Openverse fallback when explicitly enabled.
 
 ## Development
 
@@ -26,7 +26,23 @@ pnpm dev
 
 ### External image provider setup
 
-Openverse is disabled by default so local development and tests never spend public API quota accidentally. To try real external references locally, enable it server-side:
+Create a local environment file, then add a Pexels API key:
+
+```sh
+cp .env.example .env
+```
+
+```sh
+DRAWTHIS_PEXELS_API_KEY=your-pexels-api-key
+```
+
+Pexels is enabled automatically when `DRAWTHIS_PEXELS_API_KEY` is present and is tried before other external providers. Optional override for tests against a local/mock Pexels-compatible endpoint:
+
+```sh
+DRAWTHIS_PEXELS_API_BASE_URL=http://localhost:8788/v1 pnpm dev
+```
+
+Openverse remains optional and disabled by default so local development and tests never spend public API quota accidentally. To try it as a fallback after Pexels, enable it server-side:
 
 ```sh
 DRAWTHIS_OPENVERSE_ENABLED=true pnpm dev
@@ -38,7 +54,7 @@ Optional override for tests against a local/mock Openverse-compatible endpoint:
 DRAWTHIS_OPENVERSE_ENABLED=true DRAWTHIS_OPENVERSE_API_BASE_URL=http://localhost:8788/v1 pnpm dev
 ```
 
-Openverse anonymous API limits are low; keep local fallback enabled and avoid committing secrets or provider credentials to the browser.
+Local references always remain available as fallback. Keep provider credentials server-side and never commit secrets or expose them to the browser.
 
 Run type and Svelte checks:
 

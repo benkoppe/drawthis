@@ -2,10 +2,20 @@ import { describe, expect, it } from 'vitest';
 import { createReferenceProviders } from './index';
 
 describe('createReferenceProviders', () => {
-	it('uses only local references when Openverse is not configured', () => {
+	it('uses only local references when external providers are not configured', () => {
 		expect(createReferenceProviders({ references: {} }).map((provider) => provider.id)).toEqual([
 			'local'
 		]);
+	});
+
+	it('registers Pexels before local references when configured', () => {
+		expect(
+			createReferenceProviders({
+				references: {
+					pexels: { apiBaseUrl: 'https://api.pexels.com/v1', apiKey: 'pexels-api-key' }
+				}
+			}).map((provider) => provider.id)
+		).toEqual(['pexels', 'local']);
 	});
 
 	it('registers Openverse before local references when configured', () => {
@@ -14,5 +24,16 @@ describe('createReferenceProviders', () => {
 				references: { openverse: { apiBaseUrl: 'https://api.openverse.org/v1' } }
 			}).map((provider) => provider.id)
 		).toEqual(['openverse', 'local']);
+	});
+
+	it('registers configured providers in preferred fallback order', () => {
+		expect(
+			createReferenceProviders({
+				references: {
+					pexels: { apiBaseUrl: 'https://api.pexels.com/v1', apiKey: 'pexels-api-key' },
+					openverse: { apiBaseUrl: 'https://api.openverse.org/v1' }
+				}
+			}).map((provider) => provider.id)
+		).toEqual(['pexels', 'openverse', 'local']);
 	});
 });

@@ -2,8 +2,38 @@ import { describe, expect, it } from 'vitest';
 import { parseServerConfig } from './config';
 
 describe('parseServerConfig', () => {
-	it('leaves Openverse disabled by default', () => {
-		expect(parseServerConfig({}).references.openverse).toBeUndefined();
+	it('leaves external providers disabled by default', () => {
+		expect(parseServerConfig({}).references).toEqual({
+			pexels: undefined,
+			openverse: undefined
+		});
+	});
+
+	it('enables Pexels automatically when an API key is present', () => {
+		expect(
+			parseServerConfig({ DRAWTHIS_PEXELS_API_KEY: ' pexels-key ' }).references.pexels
+		).toEqual({
+			apiKey: 'pexels-key',
+			apiBaseUrl: 'https://api.pexels.com/v1'
+		});
+	});
+
+	it('accepts an explicit Pexels API base URL', () => {
+		expect(
+			parseServerConfig({
+				DRAWTHIS_PEXELS_API_KEY: 'pexels-key',
+				DRAWTHIS_PEXELS_API_BASE_URL: 'https://example.com/pexels/'
+			}).references.pexels
+		).toEqual({
+			apiKey: 'pexels-key',
+			apiBaseUrl: 'https://example.com/pexels'
+		});
+	});
+
+	it('does not parse the Pexels API base URL when Pexels is disabled', () => {
+		expect(
+			parseServerConfig({ DRAWTHIS_PEXELS_API_BASE_URL: 'not a url' }).references.pexels
+		).toBeUndefined();
 	});
 
 	it('enables Openverse with the default API base URL', () => {
@@ -29,7 +59,16 @@ describe('parseServerConfig', () => {
 		);
 	});
 
-	it('rejects insecure non-localhost API base URLs', () => {
+	it('rejects insecure non-localhost Pexels API base URLs', () => {
+		expect(() =>
+			parseServerConfig({
+				DRAWTHIS_PEXELS_API_KEY: 'pexels-key',
+				DRAWTHIS_PEXELS_API_BASE_URL: 'http://example.com'
+			})
+		).toThrow('DRAWTHIS_PEXELS_API_BASE_URL must use https unless it points at localhost');
+	});
+
+	it('rejects insecure non-localhost Openverse API base URLs', () => {
 		expect(() =>
 			parseServerConfig({
 				DRAWTHIS_OPENVERSE_ENABLED: 'true',

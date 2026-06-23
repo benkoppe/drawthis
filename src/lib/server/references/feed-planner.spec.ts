@@ -133,6 +133,30 @@ describe('createReferenceFeedPlan', () => {
 		expect(plan.searches).toEqual([]);
 	});
 
+	it('preserves configured provider order when provider weights are omitted', () => {
+		const pexelsProvider = makeProvider({ id: 'pexels', supportsSearch: true });
+		const openverseProvider = makeProvider({ id: 'openverse', supportsSearch: true });
+		const localProvider = makeProvider({ id: 'local', supportsSearch: false });
+		const policyWithoutProviderWeights: ReferenceFeedPolicy = {
+			categories: testPolicy.categories.slice(0, 1)
+		};
+		const plan = createReferenceFeedPlan(
+			{ preferences: { enabledCategories: ['interior'] } },
+			{
+				providers: [pexelsProvider, openverseProvider, localProvider],
+				policy: policyWithoutProviderWeights,
+				searchCount: 1,
+				random: () => 0.99
+			}
+		);
+
+		expect(plan.searches.slice(0, 3).map((search) => search.provider.id)).toEqual([
+			'pexels',
+			'openverse',
+			'local'
+		]);
+	});
+
 	it('dedupes equivalent requests for providers that do not support search', () => {
 		const localProvider = makeProvider({ id: 'local', supportsSearch: false });
 		const plan = createReferenceFeedPlan(

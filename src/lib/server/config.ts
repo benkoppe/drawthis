@@ -1,6 +1,17 @@
-import { DRAWTHIS_OPENVERSE_API_BASE_URL, DRAWTHIS_OPENVERSE_ENABLED } from '$app/env/private';
+import {
+	DRAWTHIS_OPENVERSE_API_BASE_URL,
+	DRAWTHIS_OPENVERSE_ENABLED,
+	DRAWTHIS_PEXELS_API_BASE_URL,
+	DRAWTHIS_PEXELS_API_KEY
+} from '$app/env/private';
 
+const defaultPexelsApiBaseUrl = 'https://api.pexels.com/v1';
 const defaultOpenverseApiBaseUrl = 'https://api.openverse.org/v1';
+
+export interface PexelsProviderConfig {
+	apiBaseUrl: string;
+	apiKey: string;
+}
 
 export interface OpenverseProviderConfig {
 	apiBaseUrl: string;
@@ -8,6 +19,7 @@ export interface OpenverseProviderConfig {
 
 export interface ServerConfig {
 	references: {
+		pexels?: PexelsProviderConfig;
 		openverse?: OpenverseProviderConfig;
 	};
 }
@@ -54,6 +66,7 @@ function parseOptionalUrl(value: string | undefined, fallback: string, name: str
 export function parseServerConfig(
 	environment: Partial<Record<string, string | undefined>>
 ): ServerConfig {
+	const pexelsApiKey = environment.DRAWTHIS_PEXELS_API_KEY?.trim();
 	const openverseEnabled = parseOptionalBoolean(
 		environment.DRAWTHIS_OPENVERSE_ENABLED,
 		'DRAWTHIS_OPENVERSE_ENABLED'
@@ -61,6 +74,17 @@ export function parseServerConfig(
 
 	return {
 		references: {
+			pexels:
+				pexelsApiKey !== undefined && pexelsApiKey.length > 0
+					? {
+							apiKey: pexelsApiKey,
+							apiBaseUrl: parseOptionalUrl(
+								environment.DRAWTHIS_PEXELS_API_BASE_URL,
+								defaultPexelsApiBaseUrl,
+								'DRAWTHIS_PEXELS_API_BASE_URL'
+							)
+						}
+					: undefined,
 			openverse:
 				openverseEnabled === true
 					? {
@@ -76,6 +100,8 @@ export function parseServerConfig(
 }
 
 export const serverConfig = parseServerConfig({
+	DRAWTHIS_PEXELS_API_KEY,
+	DRAWTHIS_PEXELS_API_BASE_URL,
 	DRAWTHIS_OPENVERSE_ENABLED,
 	DRAWTHIS_OPENVERSE_API_BASE_URL
 });

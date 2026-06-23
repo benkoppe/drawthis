@@ -129,6 +129,24 @@ function providerSupportsCategory(
 	return provider.capabilities.categories.includes(category);
 }
 
+function orderCompatibleProviders(
+	providers: readonly ReferenceProvider[],
+	policy: ReferenceFeedPolicy,
+	random: () => number
+): ReferenceProvider[] {
+	if (policy.providerWeights === undefined) {
+		return [...providers];
+	}
+
+	return weightedShuffle(
+		providers.map((provider) => ({
+			item: provider,
+			weight: normalizeWeight(policy.providerWeights?.[provider.id])
+		})),
+		random
+	);
+}
+
 export function createReferenceFeedPlan(
 	request: ReferenceFeedRequest = {},
 	options: CreateReferenceFeedPlanOptions
@@ -153,13 +171,11 @@ export function createReferenceFeedPlan(
 	);
 
 	for (const categoryPolicy of categoryPolicies) {
-		const compatibleProviders = weightedShuffle(
-			options.providers
-				.filter((provider) => providerSupportsCategory(provider, categoryPolicy.category))
-				.map((provider) => ({
-					item: provider,
-					weight: normalizeWeight(policy.providerWeights?.[provider.id])
-				})),
+		const compatibleProviders = orderCompatibleProviders(
+			options.providers.filter((provider) =>
+				providerSupportsCategory(provider, categoryPolicy.category)
+			),
+			policy,
 			random
 		);
 		const seeds = weightedShuffle(

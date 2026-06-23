@@ -1,14 +1,19 @@
 import {
 	defaultReferenceFeedCount,
 	maxReferenceFeedCount,
+	type DrawingReference,
 	type ReferenceFeedRequest,
 	type ReferenceFeedResponse
 } from '$lib/references';
-import type { ReferenceProvider } from './provider';
+import { createReferenceFeedPlan } from './feed-planner';
+import type { ReferenceFeedPolicy } from './feed-policy';
+import type { ProviderSearchResult, ReferenceProvider } from './provider';
 import { referenceProviders } from './providers';
 
 export interface ReferenceFeedOptions {
 	providers?: readonly ReferenceProvider[];
+	policy?: ReferenceFeedPolicy;
+	random?: () => number;
 }
 
 function getRequestedCount(count: ReferenceFeedRequest['count']): number {
@@ -23,44 +28,61 @@ function getRequestedCount(count: ReferenceFeedRequest['count']): number {
 	return count;
 }
 
-function providerSupportsRequest(
-	provider: ReferenceProvider,
-	request: ReferenceFeedRequest
-): boolean {
-	return (
-		request.category === undefined || provider.capabilities.categories.includes(request.category)
-	);
-}
-
-function withoutRecentReferences(
-	references: ReferenceFeedResponse['references'],
-	recentReferenceIds: readonly string[]
-): ReferenceFeedResponse['references'] {
-	if (recentReferenceIds.length === 0) {
-		return references;
-	}
-
-	const recentIds = new Set(recentReferenceIds);
-
-	return references.filter((reference) => !recentIds.has(reference.id));
-}
-
-async function searchProvider(
-	provider: ReferenceProvider,
-	request: ReferenceFeedRequest,
-	count: number,
-	recentReferenceIds: readonly string[]
-): Promise<ReferenceFeedResponse['references']> {
-	const searchCount = Math.min(
+function getProviderSearchCount(count: number, recentReferenceIds: readonly string[]): number {
+	return Math.min(
 		maxReferenceFeedCount + recentReferenceIds.length,
 		count + recentReferenceIds.length
 	);
-	const result = await provider.search({
-		count: searchCount,
-		category: request.category
-	});
+}
 
-	return withoutRecentReferences(result.references, recentReferenceIds).slice(0, count);
+function withoutExcludedReferences(
+	references: readonly DrawingReference[],
+	excludedReferenceIds: ReadonlySet<string>
+): DrawingReference[] {
+	if (excludedReferenceIds.size === 0) {
+		return [...references];
+	}
+
+	return references.filter((reference) => !excludedReferenceIds.has(reference.id));
+}
+
+function appendUniqueReferences(
+	selectedReferences: DrawingReference[],
+	candidateReferences: readonly DrawingReference[],
+	count: number
+): void {
+	const selectedReferenceIds = new Set(selectedReferences.map((reference) => reference.id));
+
+	for (const reference of candidateReferences) {
+		if (selectedReferenceIds.has(reference.id)) {
+			continue;
+		}
+
+		selectedReferences.push(reference);
+		selectedReferenceIds.add(reference.id);
+
+		if (selectedReferences.length >= count) {
+			return;
+		}
+	}
+}
+
+async function searchForReferences(
+	searches: ReturnType<typeof createReferenceFeedPlan>['searches'],
+	count: number,
+	excludedReferenceIds: ReadonlySet<string>,
+	selectedReferences: DrawingReference[]
+): Promise<void> {
+	for (const search of searches) {
+		const result: ProviderSearchResult = await search.provider.search(search.request);
+		const freshReferences = withoutExcludedReferences(result.references, excludedReferenceIds);
+
+		appendUniqueReferences(selectedReferences, freshReferences, count);
+
+		if (selectedReferences.length >= count) {
+			return;
+		}
+	}
 }
 
 export async function getReferenceFeed(
@@ -70,25 +92,20 @@ export async function getReferenceFeed(
 	const count = getRequestedCount(request.count);
 	const providers = options.providers ?? referenceProviders;
 	const recentReferenceIds = request.recentReferenceIds ?? [];
-	const compatibleProviders = providers.filter((provider) =>
-		providerSupportsRequest(provider, request)
-	);
+	const plan = createReferenceFeedPlan(request, {
+		providers,
+		policy: options.policy,
+		random: options.random,
+		count,
+		searchCount: getProviderSearchCount(count, recentReferenceIds)
+	});
+	const references: DrawingReference[] = [];
 
-	for (const provider of compatibleProviders) {
-		const references = await searchProvider(provider, request, count, recentReferenceIds);
+	await searchForReferences(plan.searches, count, new Set(recentReferenceIds), references);
 
-		if (references.length > 0) {
-			return { references };
-		}
+	if (references.length < count) {
+		await searchForReferences(plan.searches, count, new Set(), references);
 	}
 
-	for (const provider of compatibleProviders) {
-		const result = await provider.search({ count, category: request.category });
-
-		if (result.references.length > 0) {
-			return { references: result.references.slice(0, count) };
-		}
-	}
-
-	return { references: [] };
+	return { references };
 }

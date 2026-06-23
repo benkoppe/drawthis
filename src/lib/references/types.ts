@@ -29,10 +29,14 @@ export interface DrawingReference {
 	};
 }
 
+export interface ReferenceFeedPreferences {
+	enabledCategories?: readonly ReferenceCategory[];
+}
+
 export interface ReferenceFeedRequest {
 	count?: number;
-	category?: ReferenceCategory;
 	recentReferenceIds?: readonly string[];
+	preferences?: ReferenceFeedPreferences;
 }
 
 export interface ReferenceFeedResponse {

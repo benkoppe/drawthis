@@ -13,6 +13,7 @@ export {
 } from './feed';
 export type {
 	DrawingReference,
+	ReferenceFeedPreferences,
 	ReferenceFeedRequest,
 	ReferenceFeedResponse,
 	ReferenceOrientation,

@@ -131,6 +131,30 @@ describe('getReferenceFeed', () => {
 		expect(feed.references.map((reference) => reference.id)).toEqual([recentReference.id]);
 	});
 
+	it('returns preferred references before soft and hard fallback references', async () => {
+		const currentReference = makeReference('current');
+		const recentReference = makeReference('recent');
+		const preferredReference = makeReference('preferred');
+		const provider = makeProvider(() => ({
+			references: [currentReference, recentReference, preferredReference]
+		}));
+		const feed = await getReferenceFeed(
+			{
+				count: 3,
+				currentReferenceId: currentReference.id,
+				recentReferenceIds: [recentReference.id],
+				preferences: { enabledCategories: ['still-life'] }
+			},
+			{ providers: [provider], random: () => 0 }
+		);
+
+		expect(feed.references.map((reference) => reference.id)).toEqual([
+			preferredReference.id,
+			recentReference.id,
+			currentReference.id
+		]);
+	});
+
 	it('falls back to the next compatible provider with available references', async () => {
 		const emptyProvider = makeProvider(() => ({ references: [] }), { id: 'empty' });
 		const availableProvider = makeProvider(() => ({ references: [makeReference('available')] }), {

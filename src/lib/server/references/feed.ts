@@ -21,11 +21,19 @@ interface ReferenceAvoidancePolicy {
 	softReferenceIds: ReadonlySet<string>;
 }
 
-interface ReferenceSearchBuckets {
-	preferred: DrawingReference[];
-	softFallback: DrawingReference[];
-	hardFallback: DrawingReference[];
-	collectedReferenceIds: Set<string>;
+const referenceSelectionRanks = {
+	preferred: 0,
+	softFallback: 1,
+	hardFallback: 2
+} as const;
+
+type ReferenceSelectionRank =
+	(typeof referenceSelectionRanks)[keyof typeof referenceSelectionRanks];
+
+interface RankedReference {
+	reference: DrawingReference;
+	rank: ReferenceSelectionRank;
+	order: number;
 }
 
 function getRequestedCount(count: ReferenceFeedRequest['count']): number {
@@ -62,51 +70,29 @@ function getProviderSearchCount(count: number, avoidancePolicy: ReferenceAvoidan
 	return Math.min(maxReferenceFeedCount + avoidedReferenceCount, count + avoidedReferenceCount);
 }
 
-function makeReferenceSearchBuckets(): ReferenceSearchBuckets {
-	return {
-		preferred: [],
-		softFallback: [],
-		hardFallback: [],
-		collectedReferenceIds: new Set()
-	};
-}
-
-function appendUniqueReference(
-	references: DrawingReference[],
-	reference: DrawingReference,
-	collectedReferenceIds: Set<string>
-): void {
-	if (collectedReferenceIds.has(reference.id)) {
-		return;
-	}
-
-	references.push(reference);
-	collectedReferenceIds.add(reference.id);
-}
-
-function collectReference(
-	buckets: ReferenceSearchBuckets,
+function getReferenceSelectionRank(
 	reference: DrawingReference,
 	avoidancePolicy: ReferenceAvoidancePolicy
-): void {
+): ReferenceSelectionRank {
 	if (avoidancePolicy.hardReferenceIds.has(reference.id)) {
-		appendUniqueReference(buckets.hardFallback, reference, buckets.collectedReferenceIds);
-		return;
+		return referenceSelectionRanks.hardFallback;
 	}
 
 	if (avoidancePolicy.softReferenceIds.has(reference.id)) {
-		appendUniqueReference(buckets.softFallback, reference, buckets.collectedReferenceIds);
-		return;
+		return referenceSelectionRanks.softFallback;
 	}
 
-	appendUniqueReference(buckets.preferred, reference, buckets.collectedReferenceIds);
+	return referenceSelectionRanks.preferred;
 }
 
-function takeReferences(
-	buckets: Pick<ReferenceSearchBuckets, 'preferred' | 'softFallback' | 'hardFallback'>,
+function selectRankedReferences(
+	rankedReferences: Iterable<RankedReference>,
 	count: number
 ): DrawingReference[] {
-	return [...buckets.preferred, ...buckets.softFallback, ...buckets.hardFallback].slice(0, count);
+	return [...rankedReferences]
+		.sort((left, right) => left.rank - right.rank || left.order - right.order)
+		.slice(0, count)
+		.map(({ reference }) => reference);
 }
 
 async function searchForReferences(
@@ -114,21 +100,34 @@ async function searchForReferences(
 	count: number,
 	avoidancePolicy: ReferenceAvoidancePolicy
 ): Promise<DrawingReference[]> {
-	const buckets = makeReferenceSearchBuckets();
+	const rankedReferences = new Map<string, RankedReference>();
+	let preferredReferenceCount = 0;
+	let order = 0;
 
 	for (const search of searches) {
 		const result = await search.provider.search(search.request);
 
 		for (const reference of result.references) {
-			collectReference(buckets, reference, avoidancePolicy);
+			if (rankedReferences.has(reference.id)) {
+				continue;
+			}
+
+			const rank = getReferenceSelectionRank(reference, avoidancePolicy);
+
+			if (rank === referenceSelectionRanks.preferred) {
+				preferredReferenceCount += 1;
+			}
+
+			rankedReferences.set(reference.id, { reference, rank, order });
+			order += 1;
 		}
 
-		if (buckets.preferred.length >= count) {
-			return buckets.preferred.slice(0, count);
+		if (preferredReferenceCount >= count) {
+			return selectRankedReferences(rankedReferences.values(), count);
 		}
 	}
 
-	return takeReferences(buckets, count);
+	return selectRankedReferences(rankedReferences.values(), count);
 }
 
 export async function getReferenceFeed(

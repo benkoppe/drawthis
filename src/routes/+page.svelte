@@ -1,6 +1,11 @@
 <script lang="ts">
 	import { asset, base } from '$app/paths';
-	import type { DrawingReference, ReferenceFeedResponse } from '$lib/references';
+	import {
+		referenceCategoryLabels,
+		requestReferenceFeed,
+		trimRecentReferenceIds,
+		type DrawingReference
+	} from '$lib/references';
 	import { onMount } from 'svelte';
 	import type { PageData } from './$types';
 
@@ -17,6 +22,9 @@
 	);
 	let currentSourceUrl = $derived(
 		currentReference ? resolveReferenceUrl(currentReference.attribution.sourceUrl) : ''
+	);
+	let currentCategoryLabel = $derived(
+		currentReference ? referenceCategoryLabels[currentReference.category] : ''
 	);
 	let canAdvance = $derived(isReady && !isLoadingReference);
 
@@ -38,21 +46,14 @@
 
 		const currentReferenceId = currentReference?.id;
 		const recentReferenceIds = currentReferenceId
-			? [...seenReferenceIds, currentReferenceId].slice(-50)
+			? trimRecentReferenceIds([...seenReferenceIds, currentReferenceId])
 			: seenReferenceIds;
 
 		try {
-			const response = await fetch(`${base}/api/references`, {
-				method: 'POST',
-				headers: { 'content-type': 'application/json' },
-				body: JSON.stringify({ count: 1, recentReferenceIds })
-			});
-
-			if (!response.ok) {
-				throw new Error('Could not load the next reference.');
-			}
-
-			const feed = (await response.json()) as ReferenceFeedResponse;
+			const feed = await requestReferenceFeed(
+				{ count: 1, recentReferenceIds },
+				{ fetch, basePath: base }
+			);
 			const [nextReference] = feed.references;
 
 			if (!nextReference) {
@@ -85,7 +86,7 @@
 				<div class="reference-controls">
 					<div class="reference-meta">
 						<h1 id="reference-heading">{currentReference.title}</h1>
-						<p>{currentReference.category}</p>
+						<p>{currentCategoryLabel}</p>
 					</div>
 
 					<button type="button" disabled={!canAdvance} onclick={showNextReference}>

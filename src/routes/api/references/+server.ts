@@ -1,9 +1,11 @@
-import { isReferenceCategory, type ReferenceFeedRequest } from '$lib/references';
+import {
+	isReferenceCategory,
+	trimRecentReferenceIds,
+	type ReferenceFeedRequest
+} from '$lib/references';
 import { getReferenceFeed } from '$lib/server/references/feed';
 import { error, json } from '@sveltejs/kit';
 import type { RequestHandler } from './$types';
-
-const maxRecentReferenceIds = 50;
 
 function parseReferenceFeedRequest(body: unknown): ReferenceFeedRequest {
 	if (body === null || typeof body !== 'object' || Array.isArray(body)) {
@@ -37,7 +39,7 @@ function parseReferenceFeedRequest(body: unknown): ReferenceFeedRequest {
 			throw error(400, 'recentReferenceIds must be an array of strings');
 		}
 
-		request.recentReferenceIds = input.recentReferenceIds.slice(-maxRecentReferenceIds);
+		request.recentReferenceIds = trimRecentReferenceIds(input.recentReferenceIds);
 	}
 
 	return request;

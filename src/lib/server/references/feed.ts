@@ -1,9 +1,11 @@
-import type { ReferenceFeedRequest, ReferenceFeedResponse } from '$lib/references';
+import {
+	defaultReferenceFeedCount,
+	maxReferenceFeedCount,
+	type ReferenceFeedRequest,
+	type ReferenceFeedResponse
+} from '$lib/references';
 import type { ReferenceProvider } from './provider';
 import { referenceProviders } from './providers';
-
-const defaultReferenceCount = 1;
-const maxReferenceCount = 10;
 
 export interface ReferenceFeedOptions {
 	providers?: readonly ReferenceProvider[];
@@ -11,11 +13,11 @@ export interface ReferenceFeedOptions {
 
 function getRequestedCount(count: ReferenceFeedRequest['count']): number {
 	if (count === undefined) {
-		return defaultReferenceCount;
+		return defaultReferenceFeedCount;
 	}
 
-	if (!Number.isInteger(count) || count < 1 || count > maxReferenceCount) {
-		throw new Error(`count must be an integer between 1 and ${maxReferenceCount}`);
+	if (!Number.isInteger(count) || count < 1 || count > maxReferenceFeedCount) {
+		throw new Error(`count must be an integer between 1 and ${maxReferenceFeedCount}`);
 	}
 
 	return count;
@@ -50,7 +52,7 @@ async function searchProvider(
 	recentReferenceIds: readonly string[]
 ): Promise<ReferenceFeedResponse['references']> {
 	const searchCount = Math.min(
-		maxReferenceCount + recentReferenceIds.length,
+		maxReferenceFeedCount + recentReferenceIds.length,
 		count + recentReferenceIds.length
 	);
 	const result = await provider.search({

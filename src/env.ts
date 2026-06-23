@@ -16,9 +16,13 @@ const optionalStringSchema: NonNullable<EnvVarConfig<string | undefined>['schema
 };
 
 export const variables = defineEnvVars({
+	DRAWTHIS_PEXELS_ENABLED: {
+		schema: optionalStringSchema,
+		description: 'Enable the server-side Pexels reference provider when set to true.'
+	},
 	DRAWTHIS_PEXELS_API_KEY: {
 		schema: optionalStringSchema,
-		description: 'Server-side Pexels API key. Enables the Pexels reference provider when set.'
+		description: 'Server-side Pexels API key. Required when Pexels is enabled.'
 	},
 	DRAWTHIS_PEXELS_API_BASE_URL: {
 		schema: optionalStringSchema,
@@ -31,5 +35,9 @@ export const variables = defineEnvVars({
 	DRAWTHIS_OPENVERSE_API_BASE_URL: {
 		schema: optionalStringSchema,
 		description: 'Optional Openverse-compatible API base URL override.'
+	},
+	DRAWTHIS_LOCAL_REFERENCES_ENABLED: {
+		schema: optionalStringSchema,
+		description: 'Enable the server-side local mock reference provider. Defaults to true.'
 	}
 });

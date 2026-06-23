@@ -1,8 +1,10 @@
 import {
+	DRAWTHIS_LOCAL_REFERENCES_ENABLED,
 	DRAWTHIS_OPENVERSE_API_BASE_URL,
 	DRAWTHIS_OPENVERSE_ENABLED,
 	DRAWTHIS_PEXELS_API_BASE_URL,
-	DRAWTHIS_PEXELS_API_KEY
+	DRAWTHIS_PEXELS_API_KEY,
+	DRAWTHIS_PEXELS_ENABLED
 } from '$app/env/private';
 
 const defaultPexelsApiBaseUrl = 'https://api.pexels.com/v1';
@@ -17,10 +19,15 @@ export interface OpenverseProviderConfig {
 	apiBaseUrl: string;
 }
 
+export interface LocalProviderConfig {
+	enabled: true;
+}
+
 export interface ServerConfig {
 	references: {
 		pexels?: PexelsProviderConfig;
 		openverse?: OpenverseProviderConfig;
+		local?: LocalProviderConfig;
 	};
 }
 
@@ -63,45 +70,70 @@ function parseOptionalUrl(value: string | undefined, fallback: string, name: str
 	return parsed.toString().replace(/\/$/, '');
 }
 
+function requireNonEmptyValue(value: string | undefined, message: string): string {
+	if (value === undefined || value.length === 0) {
+		throw new Error(message);
+	}
+
+	return value;
+}
+
 export function parseServerConfig(
 	environment: Partial<Record<string, string | undefined>>
 ): ServerConfig {
+	const pexelsEnabled =
+		parseOptionalBoolean(environment.DRAWTHIS_PEXELS_ENABLED, 'DRAWTHIS_PEXELS_ENABLED') ?? false;
+	const openverseEnabled =
+		parseOptionalBoolean(environment.DRAWTHIS_OPENVERSE_ENABLED, 'DRAWTHIS_OPENVERSE_ENABLED') ??
+		false;
+	const localEnabled =
+		parseOptionalBoolean(
+			environment.DRAWTHIS_LOCAL_REFERENCES_ENABLED,
+			'DRAWTHIS_LOCAL_REFERENCES_ENABLED'
+		) ?? true;
 	const pexelsApiKey = environment.DRAWTHIS_PEXELS_API_KEY?.trim();
-	const openverseEnabled = parseOptionalBoolean(
-		environment.DRAWTHIS_OPENVERSE_ENABLED,
-		'DRAWTHIS_OPENVERSE_ENABLED'
-	);
+	const pexels = pexelsEnabled
+		? {
+				apiKey: requireNonEmptyValue(
+					pexelsApiKey,
+					'DRAWTHIS_PEXELS_API_KEY is required when DRAWTHIS_PEXELS_ENABLED is true'
+				),
+				apiBaseUrl: parseOptionalUrl(
+					environment.DRAWTHIS_PEXELS_API_BASE_URL,
+					defaultPexelsApiBaseUrl,
+					'DRAWTHIS_PEXELS_API_BASE_URL'
+				)
+			}
+		: undefined;
+	const openverse = openverseEnabled
+		? {
+				apiBaseUrl: parseOptionalUrl(
+					environment.DRAWTHIS_OPENVERSE_API_BASE_URL,
+					defaultOpenverseApiBaseUrl,
+					'DRAWTHIS_OPENVERSE_API_BASE_URL'
+				)
+			}
+		: undefined;
+	const local = localEnabled ? { enabled: true as const } : undefined;
+
+	if (pexels === undefined && openverse === undefined && local === undefined) {
+		throw new Error('At least one reference provider must be enabled');
+	}
 
 	return {
 		references: {
-			pexels:
-				pexelsApiKey !== undefined && pexelsApiKey.length > 0
-					? {
-							apiKey: pexelsApiKey,
-							apiBaseUrl: parseOptionalUrl(
-								environment.DRAWTHIS_PEXELS_API_BASE_URL,
-								defaultPexelsApiBaseUrl,
-								'DRAWTHIS_PEXELS_API_BASE_URL'
-							)
-						}
-					: undefined,
-			openverse:
-				openverseEnabled === true
-					? {
-							apiBaseUrl: parseOptionalUrl(
-								environment.DRAWTHIS_OPENVERSE_API_BASE_URL,
-								defaultOpenverseApiBaseUrl,
-								'DRAWTHIS_OPENVERSE_API_BASE_URL'
-							)
-						}
-					: undefined
+			pexels,
+			openverse,
+			local
 		}
 	};
 }
 
 export const serverConfig = parseServerConfig({
+	DRAWTHIS_PEXELS_ENABLED,
 	DRAWTHIS_PEXELS_API_KEY,
 	DRAWTHIS_PEXELS_API_BASE_URL,
 	DRAWTHIS_OPENVERSE_ENABLED,
-	DRAWTHIS_OPENVERSE_API_BASE_URL
+	DRAWTHIS_OPENVERSE_API_BASE_URL,
+	DRAWTHIS_LOCAL_REFERENCES_ENABLED
 });

@@ -15,7 +15,9 @@ export function createReferenceProviders(config: ServerConfig = serverConfig): R
 		providers.push(createOpenverseReferenceProvider(config.references.openverse));
 	}
 
-	providers.push(localReferenceProvider);
+	if (config.references.local !== undefined) {
+		providers.push(localReferenceProvider);
+	}
 
 	return providers;
 }

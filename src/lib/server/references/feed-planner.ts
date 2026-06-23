@@ -8,6 +8,7 @@ import type { ProviderSearchRequest, ReferenceProvider } from './provider';
 import {
 	defaultReferenceFeedPolicy,
 	type ReferenceFeedPolicy,
+	type ReferenceProviderPaginationPolicy,
 	type ReferenceSubjectSeed
 } from './feed-policy';
 
@@ -93,11 +94,33 @@ function getEnabledCategories(request: ReferenceFeedRequest): ReferenceCategory[
 	return uniqueCategories(enabledCategories);
 }
 
+function getRandomInitialCursorPage(
+	policy: ReferenceProviderPaginationPolicy | undefined,
+	random: () => number
+): string | undefined {
+	if (policy === undefined) {
+		return undefined;
+	}
+
+	const min = Math.ceil(policy.initialCursorPageMin);
+	const max = Math.floor(policy.initialCursorPageMax);
+
+	if (min < 1 || max < min) {
+		return undefined;
+	}
+
+	const randomValue = Math.min(Math.max(random(), 0), 1 - Number.EPSILON);
+
+	return String(Math.floor(randomValue * (max - min + 1)) + min);
+}
+
 function makeProviderSearchRequest(
 	provider: ReferenceProvider,
 	category: ReferenceCategory,
 	seed: ReferenceSubjectSeed,
-	count: number
+	count: number,
+	policy: ReferenceFeedPolicy,
+	random: () => number
 ): ProviderSearchRequest {
 	const request: ProviderSearchRequest = { count, category };
 
@@ -107,6 +130,14 @@ function makeProviderSearchRequest(
 
 	if (provider.capabilities.supportsOrientation && seed.orientation !== undefined) {
 		request.orientation = seed.orientation;
+	}
+
+	if (provider.capabilities.supportsPagination) {
+		const cursor = getRandomInitialCursorPage(policy.providerPagination?.[provider.id], random);
+
+		if (cursor !== undefined) {
+			request.cursor = cursor;
+		}
 	}
 
 	return request;
@@ -192,7 +223,9 @@ export function createReferenceFeedPlan(
 					provider,
 					categoryPolicy.category,
 					seed,
-					options.searchCount
+					options.searchCount,
+					policy,
+					random
 				);
 				const searchKey = makeSearchKey(provider, providerRequest);
 

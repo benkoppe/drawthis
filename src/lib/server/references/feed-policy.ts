@@ -14,12 +14,30 @@ export interface ReferenceCategoryPolicy {
 	subjectSeeds: readonly ReferenceSubjectSeed[];
 }
 
+export interface ReferenceProviderPaginationPolicy {
+	initialCursorPageMin: number;
+	initialCursorPageMax: number;
+}
+
 export interface ReferenceFeedPolicy {
 	categories: readonly ReferenceCategoryPolicy[];
 	providerWeights?: Readonly<Partial<Record<ReferenceProviderId, number>>>;
+	providerPagination?: Readonly<
+		Partial<Record<ReferenceProviderId, ReferenceProviderPaginationPolicy>>
+	>;
 }
 
 export const defaultReferenceFeedPolicy: ReferenceFeedPolicy = {
+	providerPagination: {
+		pexels: {
+			initialCursorPageMin: 1,
+			initialCursorPageMax: 10
+		},
+		openverse: {
+			initialCursorPageMin: 1,
+			initialCursorPageMax: 5
+		}
+	},
 	categories: [
 		{
 			category: 'interior',

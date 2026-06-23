@@ -9,6 +9,7 @@ function makeProvider(
 		id: string;
 		categories?: readonly ReferenceCategory[];
 		supportsSearch?: boolean;
+		supportsPagination?: boolean;
 		supportsOrientation?: boolean;
 	}
 ): ReferenceProvider {
@@ -18,7 +19,7 @@ function makeProvider(
 		capabilities: overrides.capabilities ?? {
 			categories: overrides.categories ?? ['interior'],
 			supportsSearch: overrides.supportsSearch ?? false,
-			supportsPagination: false,
+			supportsPagination: overrides.supportsPagination ?? false,
 			supportsOrientation: overrides.supportsOrientation ?? false,
 			attributionRequired: true
 		},
@@ -166,6 +167,52 @@ describe('createReferenceFeedPlan', () => {
 
 		expect(plan.searches).toHaveLength(1);
 		expect(plan.searches[0]?.request).toEqual({ count: 1, category: 'interior' });
+	});
+
+	it('adds a deterministic initial cursor for pagination-capable providers with pagination policy', () => {
+		const provider = makeProvider({ id: 'pexels', supportsSearch: true, supportsPagination: true });
+		const policy: ReferenceFeedPolicy = {
+			categories: [
+				{ category: 'interior', subjectSeeds: [testPolicy.categories[0].subjectSeeds[0]] }
+			],
+			providerPagination: {
+				pexels: { initialCursorPageMin: 3, initialCursorPageMax: 7 }
+			}
+		};
+		const plan = createReferenceFeedPlan(
+			{ preferences: { enabledCategories: ['interior'] } },
+			{ providers: [provider], policy, searchCount: 1, random: () => 0.5 }
+		);
+
+		expect(plan.searches[0]?.request.cursor).toBe('5');
+	});
+
+	it('does not add an initial cursor for providers without pagination support or policy', () => {
+		const paginationProviderWithoutPolicy = makeProvider({
+			id: 'unconfigured',
+			supportsSearch: true,
+			supportsPagination: true
+		});
+		const providerWithoutPagination = makeProvider({ id: 'local', supportsPagination: false });
+		const policy: ReferenceFeedPolicy = {
+			categories: [
+				{ category: 'interior', subjectSeeds: [testPolicy.categories[0].subjectSeeds[0]] }
+			],
+			providerPagination: {
+				pexels: { initialCursorPageMin: 1, initialCursorPageMax: 10 }
+			}
+		};
+		const plan = createReferenceFeedPlan(
+			{ preferences: { enabledCategories: ['interior'] } },
+			{
+				providers: [paginationProviderWithoutPolicy, providerWithoutPagination],
+				policy,
+				searchCount: 1,
+				random: () => 0
+			}
+		);
+
+		expect(plan.searches.map((search) => search.request.cursor)).toEqual([undefined, undefined]);
 	});
 
 	it('uses injected randomness for deterministic weighted ordering', () => {

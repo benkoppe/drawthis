@@ -13,7 +13,8 @@ describe('requestReferenceFeed', () => {
 		const response = await requestReferenceFeed(
 			{
 				count: 1,
-				recentReferenceIds: ['local:room-interior'],
+				currentReferenceId: 'local:room-interior',
+				recentReferenceIds: ['local:street-corner'],
 				preferences: { enabledCategories: ['street'] }
 			},
 			{ fetch: fetcher, basePath: '/base' }
@@ -28,7 +29,8 @@ describe('requestReferenceFeed', () => {
 					headers: { 'content-type': 'application/json' },
 					body: JSON.stringify({
 						count: 1,
-						recentReferenceIds: ['local:room-interior'],
+						currentReferenceId: 'local:room-interior',
+						recentReferenceIds: ['local:street-corner'],
 						preferences: { enabledCategories: ['street'] }
 					})
 				}

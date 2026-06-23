@@ -45,13 +45,10 @@
 		errorMessage = undefined;
 
 		const currentReferenceId = currentReference?.id;
-		const recentReferenceIds = currentReferenceId
-			? trimRecentReferenceIds([...seenReferenceIds, currentReferenceId])
-			: seenReferenceIds;
 
 		try {
 			const feed = await requestReferenceFeed(
-				{ count: 1, recentReferenceIds },
+				{ count: 1, currentReferenceId, recentReferenceIds: seenReferenceIds },
 				{ fetch, basePath: base }
 			);
 			const [nextReference] = feed.references;
@@ -61,7 +58,10 @@
 			}
 
 			loadedReference = nextReference;
-			seenReferenceIds = recentReferenceIds;
+
+			if (currentReferenceId) {
+				seenReferenceIds = trimRecentReferenceIds([...seenReferenceIds, currentReferenceId]);
+			}
 		} catch (cause) {
 			errorMessage = cause instanceof Error ? cause.message : 'Could not load the next reference.';
 		} finally {

@@ -16,6 +16,18 @@ export interface ReferenceFeedOptions {
 	random?: () => number;
 }
 
+interface ReferenceAvoidancePolicy {
+	hardReferenceIds: ReadonlySet<string>;
+	softReferenceIds: ReadonlySet<string>;
+}
+
+interface ReferenceSearchBuckets {
+	preferred: DrawingReference[];
+	softFallback: DrawingReference[];
+	hardFallback: DrawingReference[];
+	collectedReferenceIds: Set<string>;
+}
+
 function getRequestedCount(count: ReferenceFeedRequest['count']): number {
 	if (count === undefined) {
 		return defaultReferenceFeedCount;
@@ -28,61 +40,95 @@ function getRequestedCount(count: ReferenceFeedRequest['count']): number {
 	return count;
 }
 
-function getProviderSearchCount(count: number, recentReferenceIds: readonly string[]): number {
-	return Math.min(
-		maxReferenceFeedCount + recentReferenceIds.length,
-		count + recentReferenceIds.length
-	);
-}
+function getAvoidancePolicy(request: ReferenceFeedRequest): ReferenceAvoidancePolicy {
+	const hardReferenceIds = new Set<string>();
 
-function withoutExcludedReferences(
-	references: readonly DrawingReference[],
-	excludedReferenceIds: ReadonlySet<string>
-): DrawingReference[] {
-	if (excludedReferenceIds.size === 0) {
-		return [...references];
+	if (request.currentReferenceId !== undefined) {
+		hardReferenceIds.add(request.currentReferenceId);
 	}
 
-	return references.filter((reference) => !excludedReferenceIds.has(reference.id));
+	return {
+		hardReferenceIds,
+		softReferenceIds: new Set(
+			(request.recentReferenceIds ?? []).filter((referenceId) => !hardReferenceIds.has(referenceId))
+		)
+	};
 }
 
-function appendUniqueReferences(
-	selectedReferences: DrawingReference[],
-	candidateReferences: readonly DrawingReference[],
-	count: number
+function getProviderSearchCount(count: number, avoidancePolicy: ReferenceAvoidancePolicy): number {
+	const avoidedReferenceCount =
+		avoidancePolicy.hardReferenceIds.size + avoidancePolicy.softReferenceIds.size;
+
+	return Math.min(maxReferenceFeedCount + avoidedReferenceCount, count + avoidedReferenceCount);
+}
+
+function makeReferenceSearchBuckets(): ReferenceSearchBuckets {
+	return {
+		preferred: [],
+		softFallback: [],
+		hardFallback: [],
+		collectedReferenceIds: new Set()
+	};
+}
+
+function appendUniqueReference(
+	references: DrawingReference[],
+	reference: DrawingReference,
+	collectedReferenceIds: Set<string>
 ): void {
-	const selectedReferenceIds = new Set(selectedReferences.map((reference) => reference.id));
-
-	for (const reference of candidateReferences) {
-		if (selectedReferenceIds.has(reference.id)) {
-			continue;
-		}
-
-		selectedReferences.push(reference);
-		selectedReferenceIds.add(reference.id);
-
-		if (selectedReferences.length >= count) {
-			return;
-		}
+	if (collectedReferenceIds.has(reference.id)) {
+		return;
 	}
+
+	references.push(reference);
+	collectedReferenceIds.add(reference.id);
+}
+
+function collectReference(
+	buckets: ReferenceSearchBuckets,
+	reference: DrawingReference,
+	avoidancePolicy: ReferenceAvoidancePolicy
+): void {
+	if (avoidancePolicy.hardReferenceIds.has(reference.id)) {
+		appendUniqueReference(buckets.hardFallback, reference, buckets.collectedReferenceIds);
+		return;
+	}
+
+	if (avoidancePolicy.softReferenceIds.has(reference.id)) {
+		appendUniqueReference(buckets.softFallback, reference, buckets.collectedReferenceIds);
+		return;
+	}
+
+	appendUniqueReference(buckets.preferred, reference, buckets.collectedReferenceIds);
+}
+
+function takeReferences(
+	buckets: Pick<ReferenceSearchBuckets, 'preferred' | 'softFallback' | 'hardFallback'>,
+	count: number
+): DrawingReference[] {
+	return [...buckets.preferred, ...buckets.softFallback, ...buckets.hardFallback].slice(0, count);
 }
 
 async function searchForReferences(
 	searches: readonly PlannedProviderSearch[],
 	count: number,
-	excludedReferenceIds: ReadonlySet<string>,
-	selectedReferences: DrawingReference[]
-): Promise<void> {
+	avoidancePolicy: ReferenceAvoidancePolicy
+): Promise<DrawingReference[]> {
+	const buckets = makeReferenceSearchBuckets();
+
 	for (const search of searches) {
 		const result = await search.provider.search(search.request);
-		const freshReferences = withoutExcludedReferences(result.references, excludedReferenceIds);
 
-		appendUniqueReferences(selectedReferences, freshReferences, count);
+		for (const reference of result.references) {
+			collectReference(buckets, reference, avoidancePolicy);
+		}
 
-		if (selectedReferences.length >= count) {
-			return;
+		if (buckets.preferred.length >= count) {
+			return buckets.preferred.slice(0, count);
 		}
 	}
+
+	return takeReferences(buckets, count);
 }
 
 export async function getReferenceFeed(
@@ -91,20 +137,13 @@ export async function getReferenceFeed(
 ): Promise<ReferenceFeedResponse> {
 	const count = getRequestedCount(request.count);
 	const providers = options.providers ?? referenceProviders;
-	const recentReferenceIds = request.recentReferenceIds ?? [];
+	const avoidancePolicy = getAvoidancePolicy(request);
 	const plan = createReferenceFeedPlan(request, {
 		providers,
 		policy: options.policy,
 		random: options.random,
-		searchCount: getProviderSearchCount(count, recentReferenceIds)
+		searchCount: getProviderSearchCount(count, avoidancePolicy)
 	});
-	const references: DrawingReference[] = [];
 
-	await searchForReferences(plan.searches, count, new Set(recentReferenceIds), references);
-
-	if (references.length < count) {
-		await searchForReferences(plan.searches, count, new Set(), references);
-	}
-
-	return { references };
+	return { references: await searchForReferences(plan.searches, count, avoidancePolicy) };
 }

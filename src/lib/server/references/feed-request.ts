@@ -64,6 +64,18 @@ export function parseReferenceFeedRequest(body: unknown): ReferenceFeedRequest {
 		request.count = body.count;
 	}
 
+	if (body.currentReferenceId !== undefined) {
+		if (typeof body.currentReferenceId !== 'string') {
+			throw error(400, 'currentReferenceId must be a string');
+		}
+
+		if (body.currentReferenceId.length === 0) {
+			throw error(400, 'currentReferenceId must not be empty');
+		}
+
+		request.currentReferenceId = body.currentReferenceId;
+	}
+
 	if (body.recentReferenceIds !== undefined) {
 		if (
 			!Array.isArray(body.recentReferenceIds) ||

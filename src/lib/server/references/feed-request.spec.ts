@@ -15,14 +15,30 @@ describe('parseReferenceFeedRequest', () => {
 		expect(
 			parseReferenceFeedRequest({
 				count: 2,
+				currentReferenceId: 'local:room-interior',
 				recentReferenceIds: ['a', 'b'],
 				preferences: { enabledCategories: ['street', 'street', 'plant'] }
 			})
 		).toEqual({
 			count: 2,
+			currentReferenceId: 'local:room-interior',
 			recentReferenceIds: ['a', 'b'],
 			preferences: { enabledCategories: ['street', 'plant'] }
 		});
+	});
+
+	it('rejects non-string current reference ids', () => {
+		expectBadRequest(
+			() => parseReferenceFeedRequest({ currentReferenceId: 123 }),
+			'currentReferenceId must be a string'
+		);
+	});
+
+	it('rejects empty current reference ids', () => {
+		expectBadRequest(
+			() => parseReferenceFeedRequest({ currentReferenceId: '' }),
+			'currentReferenceId must not be empty'
+		);
 	});
 
 	it('rejects unsupported enabled categories', () => {

@@ -35,6 +35,7 @@ export interface ReferenceFeedPreferences {
 
 export interface ReferenceFeedRequest {
 	count?: number;
+	currentReferenceId?: string;
 	recentReferenceIds?: readonly string[];
 	preferences?: ReferenceFeedPreferences;
 }

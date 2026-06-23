@@ -64,7 +64,7 @@ describe('getReferenceFeed', () => {
 		expect(secondFeed.references[0]?.id).toBe('local:street-corner');
 	});
 
-	it('allows repeats after all compatible references have been seen', async () => {
+	it('relaxes recent history after all compatible references have been seen', async () => {
 		const feed = await getReferenceFeed(
 			{
 				count: 1,
@@ -80,6 +80,55 @@ describe('getReferenceFeed', () => {
 		);
 
 		expect(feed.references[0]?.id).toBe('local:room-interior');
+	});
+
+	it('avoids the current reference even when recent history is exhausted', async () => {
+		const feed = await getReferenceFeed(
+			{
+				count: 1,
+				currentReferenceId: 'local:room-interior',
+				recentReferenceIds: [
+					'local:room-interior',
+					'local:street-corner',
+					'local:hand-study',
+					'local:still-life',
+					'local:plant-window'
+				]
+			},
+			{ providers: [localReferenceProvider], random: () => 0 }
+		);
+
+		expect(feed.references[0]?.id).toBe('local:street-corner');
+	});
+
+	it('allows the current reference only when it is the only compatible option', async () => {
+		const feed = await getReferenceFeed(
+			{
+				count: 1,
+				currentReferenceId: 'local:room-interior',
+				preferences: { enabledCategories: ['interior'] }
+			},
+			{ providers: [localReferenceProvider], random: () => 0 }
+		);
+
+		expect(feed.references[0]?.id).toBe('local:room-interior');
+	});
+
+	it('relaxes soft recent references before hard current references', async () => {
+		const currentReference = makeReference('current');
+		const recentReference = makeReference('recent');
+		const provider = makeProvider(() => ({ references: [currentReference, recentReference] }));
+		const feed = await getReferenceFeed(
+			{
+				count: 1,
+				currentReferenceId: currentReference.id,
+				recentReferenceIds: [recentReference.id],
+				preferences: { enabledCategories: ['still-life'] }
+			},
+			{ providers: [provider], random: () => 0 }
+		);
+
+		expect(feed.references.map((reference) => reference.id)).toEqual([recentReference.id]);
 	});
 
 	it('falls back to the next compatible provider with available references', async () => {
@@ -125,6 +174,26 @@ describe('getReferenceFeed', () => {
 			category: 'still-life',
 			query: 'mug and bottle still life'
 		});
+	});
+
+	it('requests enough provider results to account for current and recent references', async () => {
+		const requests: ProviderSearchRequest[] = [];
+		const provider = makeProvider((request) => {
+			requests.push(request);
+			return { references: [makeReference('available')] };
+		});
+
+		await getReferenceFeed(
+			{
+				count: 1,
+				currentReferenceId: 'test:current',
+				recentReferenceIds: ['test:current', 'test:recent-1', 'test:recent-2'],
+				preferences: { enabledCategories: ['still-life'] }
+			},
+			{ providers: [provider], random: () => 0 }
+		);
+
+		expect(requests[0]?.count).toBe(4);
 	});
 
 	it('rejects invalid counts', async () => {

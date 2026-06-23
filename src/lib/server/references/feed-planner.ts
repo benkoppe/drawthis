@@ -1,5 +1,4 @@
 import {
-	defaultReferenceFeedCount,
 	isReferenceCategory,
 	referenceCategories,
 	type ReferenceCategory,
@@ -20,14 +19,11 @@ export interface PlannedProviderSearch {
 }
 
 export interface ReferenceFeedPlan {
-	count: number;
-	recentReferenceIds: readonly string[];
 	searches: readonly PlannedProviderSearch[];
 }
 
 export interface CreateReferenceFeedPlanOptions {
 	providers: readonly ReferenceProvider[];
-	count?: number;
 	searchCount: number;
 	policy?: ReferenceFeedPolicy;
 	random?: () => number;
@@ -40,7 +36,7 @@ interface WeightedItem<T> {
 
 const defaultWeight = 1;
 
-function getPositiveWeight(weight: number | undefined): number {
+function normalizeWeight(weight: number | undefined): number {
 	if (weight === undefined) {
 		return defaultWeight;
 	}
@@ -151,7 +147,7 @@ export function createReferenceFeedPlan(
 			)
 			.map((categoryPolicy) => ({
 				item: categoryPolicy,
-				weight: getPositiveWeight(categoryPolicy.weight)
+				weight: normalizeWeight(categoryPolicy.weight)
 			})),
 		random
 	);
@@ -162,14 +158,14 @@ export function createReferenceFeedPlan(
 				.filter((provider) => providerSupportsCategory(provider, categoryPolicy.category))
 				.map((provider) => ({
 					item: provider,
-					weight: getPositiveWeight(policy.providerWeights?.[provider.id])
+					weight: normalizeWeight(policy.providerWeights?.[provider.id])
 				})),
 			random
 		);
 		const seeds = weightedShuffle(
 			categoryPolicy.subjectSeeds.map((seed) => ({
 				item: seed,
-				weight: getPositiveWeight(seed.weight)
+				weight: normalizeWeight(seed.weight)
 			})),
 			random
 		);
@@ -199,9 +195,5 @@ export function createReferenceFeedPlan(
 		}
 	}
 
-	return {
-		count: options.count ?? request.count ?? defaultReferenceFeedCount,
-		recentReferenceIds: request.recentReferenceIds ?? [],
-		searches
-	};
+	return { searches };
 }

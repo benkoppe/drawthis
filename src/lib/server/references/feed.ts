@@ -5,9 +5,9 @@ import {
 	type ReferenceFeedRequest,
 	type ReferenceFeedResponse
 } from '$lib/references';
-import { createReferenceFeedPlan } from './feed-planner';
+import { createReferenceFeedPlan, type PlannedProviderSearch } from './feed-planner';
 import type { ReferenceFeedPolicy } from './feed-policy';
-import type { ProviderSearchResult, ReferenceProvider } from './provider';
+import type { ReferenceProvider } from './provider';
 import { referenceProviders } from './providers';
 
 export interface ReferenceFeedOptions {
@@ -68,13 +68,13 @@ function appendUniqueReferences(
 }
 
 async function searchForReferences(
-	searches: ReturnType<typeof createReferenceFeedPlan>['searches'],
+	searches: readonly PlannedProviderSearch[],
 	count: number,
 	excludedReferenceIds: ReadonlySet<string>,
 	selectedReferences: DrawingReference[]
 ): Promise<void> {
 	for (const search of searches) {
-		const result: ProviderSearchResult = await search.provider.search(search.request);
+		const result = await search.provider.search(search.request);
 		const freshReferences = withoutExcludedReferences(result.references, excludedReferenceIds);
 
 		appendUniqueReferences(selectedReferences, freshReferences, count);
@@ -96,7 +96,6 @@ export async function getReferenceFeed(
 		providers,
 		policy: options.policy,
 		random: options.random,
-		count,
 		searchCount: getProviderSearchCount(count, recentReferenceIds)
 	});
 	const references: DrawingReference[] = [];

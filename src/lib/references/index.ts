@@ -11,6 +11,13 @@ export {
 	maxReferenceFeedCount,
 	trimRecentReferenceIds
 } from './feed';
+export {
+	mergeRecentReferenceIds,
+	parseRecentReferenceIds,
+	referenceHistoryCookieName,
+	referenceHistoryStorageKey,
+	serializeRecentReferenceIds
+} from './history';
 export type {
 	DrawingReference,
 	ReferenceFeedPreferences,

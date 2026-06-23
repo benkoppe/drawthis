@@ -1,9 +1,12 @@
 <script lang="ts">
 	import { asset, base } from '$app/paths';
 	import {
+		mergeRecentReferenceIds,
+		parseRecentReferenceIds,
 		referenceCategoryLabels,
+		referenceHistoryStorageKey,
 		requestReferenceFeed,
-		trimRecentReferenceIds,
+		serializeRecentReferenceIds,
 		type DrawingReference
 	} from '$lib/references';
 	import { onMount } from 'svelte';
@@ -29,11 +32,32 @@
 	let canAdvance = $derived(isReady && !isLoadingReference);
 
 	onMount(() => {
+		seenReferenceIds = mergeRecentReferenceIds(
+			readStoredRecentReferenceIds(),
+			data.recentReferenceIds
+		);
+		writeStoredRecentReferenceIds(seenReferenceIds);
 		isReady = true;
 	});
 
 	function resolveReferenceUrl(url: string): string {
 		return url.startsWith('/') ? asset(url) : url;
+	}
+
+	function readStoredRecentReferenceIds(): string[] {
+		try {
+			return parseRecentReferenceIds(localStorage.getItem(referenceHistoryStorageKey));
+		} catch {
+			return [];
+		}
+	}
+
+	function writeStoredRecentReferenceIds(referenceIds: readonly string[]): void {
+		try {
+			localStorage.setItem(referenceHistoryStorageKey, serializeRecentReferenceIds(referenceIds));
+		} catch {
+			// Ignore unavailable or full browser storage; the server cookie still tracks recent history.
+		}
 	}
 
 	async function showNextReference() {
@@ -58,10 +82,12 @@
 			}
 
 			loadedReference = nextReference;
-
-			if (currentReferenceId) {
-				seenReferenceIds = trimRecentReferenceIds([...seenReferenceIds, currentReferenceId]);
-			}
+			seenReferenceIds = mergeRecentReferenceIds(
+				seenReferenceIds,
+				currentReferenceId ? [currentReferenceId] : [],
+				[nextReference.id]
+			);
+			writeStoredRecentReferenceIds(seenReferenceIds);
 		} catch (cause) {
 			errorMessage = cause instanceof Error ? cause.message : 'Could not load the next reference.';
 		} finally {

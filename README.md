@@ -1,4 +1,4 @@
-# DrawThis
+# DrawThis ✏️
 
 DrawThis is a fast drawing-reference practice tool. It brings a reference image to the user immediately so they can practice visual replication without searching, curating, or deciding what to draw next.
 

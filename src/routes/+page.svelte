@@ -1,22 +1,36 @@
 <script lang="ts">
 	import { asset, base } from '$app/paths';
 	import {
+		appendReferenceHistoryEntry,
+		appendReferenceTimelineEntry,
+		createReferenceTimelineEntry,
+		createReferenceTimelineTabId,
+		getLastViewedReferenceHistoryEntry,
+		getRecentReferenceHistoryEntries,
+		getReferenceHistoryEntriesByIds,
 		imagePreloadAheadCount,
+		maxReferenceTabTimelineEntries,
 		mergeRecentReferenceContexts,
 		mergeRecentReferenceIds,
 		parseRecentReferenceContexts,
 		parseRecentReferenceIds,
+		parseReferenceTabTimelineState,
 		referenceCategoryLabels,
 		referenceContextHistoryStorageKey,
 		referenceHistoryStorageKey,
 		referenceQueueLowWatermark,
 		referenceQueueTargetSize,
+		referenceTimelineSessionStorageKey,
 		requestReferenceFeed,
 		serializeRecentReferenceContexts,
 		serializeRecentReferenceIds,
+		serializeReferenceTabTimelineState,
+		setLastViewedReferenceHistoryEntryId,
 		toReferenceFeedContextItem,
 		type DrawingReference,
-		type ReferenceFeedContextItem
+		type ReferenceFeedContextItem,
+		type ReferenceTabTimelineState,
+		type ReferenceTimelineEntry
 	} from '$lib/references';
 	import { onMount } from 'svelte';
 	import type { PageData } from './$types';
@@ -27,8 +41,11 @@
 
 	let currentReference = $state<DrawingReference | undefined>(initialReferences[0]);
 	let referenceQueue = $state<DrawingReference[]>(initialReferences.slice(1));
-	let seenReferenceIds = $state<string[]>([]);
-	let seenReferenceContexts = $state<ReferenceFeedContextItem[]>([]);
+	let avoidanceReferenceIds = $state<string[]>([]);
+	let avoidanceReferenceContexts = $state<ReferenceFeedContextItem[]>([]);
+	let referenceTimelineEntries = $state<ReferenceTimelineEntry[]>([]);
+	let referenceTimelineCursorIndex = $state(-1);
+	let activeTimelineTabId = '';
 	let preloadedReferenceIds: string[] = [];
 	let isReady = $state(false);
 	let isLoadingReference = $state(false);
@@ -43,28 +60,47 @@
 	let currentCategoryLabel = $derived(
 		currentReference ? referenceCategoryLabels[currentReference.category] : ''
 	);
-	let canAdvance = $derived(
-		isReady && (referenceQueue.length > 0 || (!isLoadingReference && !isRefillingQueue))
+	let isAtTimelineTail = $derived(
+		referenceTimelineCursorIndex === referenceTimelineEntries.length - 1
+	);
+	let canGoBack = $derived(isReady && referenceTimelineCursorIndex > 0);
+	let canGoNext = $derived(
+		isReady &&
+			(!isAtTimelineTail || referenceQueue.length > 0 || (!isLoadingReference && !isRefillingQueue))
 	);
 
 	onMount(() => {
-		seenReferenceContexts = mergeRecentReferenceContexts(
+		void initializePracticeState();
+	});
+
+	async function initializePracticeState(): Promise<void> {
+		avoidanceReferenceContexts = mergeRecentReferenceContexts(
 			readStoredRecentReferenceContexts(),
 			data.recentReferences,
 			initialReferences.map(toReferenceFeedContextItem)
 		);
-		seenReferenceIds = mergeRecentReferenceIds(
+		avoidanceReferenceIds = mergeRecentReferenceIds(
 			readStoredRecentReferenceIds(),
 			data.recentReferenceIds,
-			seenReferenceContexts.map((reference) => reference.id),
+			avoidanceReferenceContexts.map((reference) => reference.id),
 			referenceQueue.map((reference) => reference.id)
 		);
-		writeStoredRecentReferenceIds(seenReferenceIds);
-		writeStoredRecentReferenceContexts(seenReferenceContexts);
+		writeStoredRecentReferenceIds(avoidanceReferenceIds);
+		writeStoredRecentReferenceContexts(avoidanceReferenceContexts);
+
+		await initializeReferenceTimeline();
+
+		if (currentReference !== undefined) {
+			setReferenceQueue(
+				referenceQueue.filter((reference) => reference.id !== currentReference?.id)
+			);
+			rememberAvoidanceReferences([currentReference]);
+		}
+
 		isReady = true;
 		preloadQueuedImages();
 		void ensureReferenceQueueFilled();
-	});
+	}
 
 	function resolveReferenceUrl(url: string): string {
 		return url.startsWith('/') ? asset(url) : url;
@@ -83,6 +119,27 @@
 			return parseRecentReferenceContexts(localStorage.getItem(referenceContextHistoryStorageKey));
 		} catch {
 			return [];
+		}
+	}
+
+	function readStoredReferenceTabTimelineState(): ReferenceTabTimelineState | undefined {
+		try {
+			return parseReferenceTabTimelineState(
+				sessionStorage.getItem(referenceTimelineSessionStorageKey)
+			);
+		} catch {
+			return undefined;
+		}
+	}
+
+	function writeStoredReferenceTabTimelineState(state: ReferenceTabTimelineState): void {
+		try {
+			sessionStorage.setItem(
+				referenceTimelineSessionStorageKey,
+				serializeReferenceTabTimelineState(state)
+			);
+		} catch {
+			// Ignore unavailable or full tab storage; durable history still tracks seen references.
 		}
 	}
 
@@ -107,18 +164,132 @@
 		}
 	}
 
-	function rememberReferenceContexts(references: readonly (DrawingReference | undefined)[]): void {
+	function rememberAvoidanceReferences(
+		references: readonly (DrawingReference | undefined)[]
+	): void {
 		const referenceContexts = references
 			.filter((reference): reference is DrawingReference => reference !== undefined)
 			.map(toReferenceFeedContextItem);
 
-		seenReferenceContexts = mergeRecentReferenceContexts(seenReferenceContexts, referenceContexts);
-		seenReferenceIds = mergeRecentReferenceIds(
-			seenReferenceIds,
+		avoidanceReferenceContexts = mergeRecentReferenceContexts(
+			avoidanceReferenceContexts,
+			referenceContexts
+		);
+		avoidanceReferenceIds = mergeRecentReferenceIds(
+			avoidanceReferenceIds,
 			referenceContexts.map((reference) => reference.id)
 		);
-		writeStoredRecentReferenceIds(seenReferenceIds);
-		writeStoredRecentReferenceContexts(seenReferenceContexts);
+		writeStoredRecentReferenceIds(avoidanceReferenceIds);
+		writeStoredRecentReferenceContexts(avoidanceReferenceContexts);
+	}
+
+	function persistReferenceTimeline(): void {
+		const cursorEntryId = referenceTimelineEntries[referenceTimelineCursorIndex]?.id;
+
+		if (activeTimelineTabId.length === 0) {
+			return;
+		}
+
+		writeStoredReferenceTabTimelineState({
+			tabId: activeTimelineTabId,
+			entryIds: referenceTimelineEntries.map((entry) => entry.id),
+			cursorEntryId
+		});
+	}
+
+	async function initializeReferenceTimeline(): Promise<void> {
+		const storedTimelineState = readStoredReferenceTabTimelineState();
+		activeTimelineTabId = storedTimelineState?.tabId ?? createReferenceTimelineTabId();
+
+		if (storedTimelineState !== undefined && storedTimelineState.entryIds.length > 0) {
+			const entriesById = await getReferenceHistoryEntriesByIds(storedTimelineState.entryIds).catch(
+				() => new Map<string, ReferenceTimelineEntry>()
+			);
+			const restoredEntries = storedTimelineState.entryIds.flatMap((entryId) => {
+				const entry = entriesById.get(entryId);
+				return entry === undefined ? [] : [entry];
+			});
+
+			if (restoredEntries.length > 0) {
+				referenceTimelineEntries = restoredEntries;
+				const cursorIndex = restoredEntries.findIndex(
+					(entry) => entry.id === storedTimelineState.cursorEntryId
+				);
+				referenceTimelineCursorIndex =
+					cursorIndex === -1 ? restoredEntries.length - 1 : cursorIndex;
+				currentReference = referenceTimelineEntries[referenceTimelineCursorIndex]?.reference;
+				persistReferenceTimeline();
+				void rememberLastViewedTimelineEntry();
+				return;
+			}
+		}
+
+		const [recentEntries, lastViewedEntry] = await Promise.all([
+			getRecentReferenceHistoryEntries(maxReferenceTabTimelineEntries).catch(() => []),
+			getLastViewedReferenceHistoryEntry().catch(() => undefined)
+		]);
+
+		if (recentEntries.length > 0) {
+			referenceTimelineEntries = recentEntries;
+			const cursorIndex = recentEntries.findIndex((entry) => entry.id === lastViewedEntry?.id);
+			referenceTimelineCursorIndex = cursorIndex === -1 ? recentEntries.length - 1 : cursorIndex;
+			currentReference = referenceTimelineEntries[referenceTimelineCursorIndex]?.reference;
+			persistReferenceTimeline();
+			void rememberLastViewedTimelineEntry();
+			return;
+		}
+
+		if (currentReference !== undefined) {
+			await appendDisplayedReferenceToTimeline(currentReference);
+		}
+	}
+
+	async function rememberLastViewedTimelineEntry(): Promise<void> {
+		const currentEntryId = referenceTimelineEntries[referenceTimelineCursorIndex]?.id;
+
+		if (currentEntryId !== undefined) {
+			await setLastViewedReferenceHistoryEntryId(currentEntryId).catch(() => undefined);
+		}
+	}
+
+	async function appendDisplayedReferenceToTimeline(reference: DrawingReference): Promise<void> {
+		if (activeTimelineTabId.length === 0) {
+			activeTimelineTabId = createReferenceTimelineTabId();
+		}
+
+		const referenceSnapshot = $state.snapshot(reference) as DrawingReference;
+		const timelineEntry = createReferenceTimelineEntry(referenceSnapshot, activeTimelineTabId);
+		const nextTimelineEntries = appendReferenceTimelineEntry(
+			referenceTimelineEntries,
+			timelineEntry,
+			referenceTimelineCursorIndex
+		);
+		const entryWasAppended = nextTimelineEntries.some((entry) => entry.id === timelineEntry.id);
+
+		referenceTimelineEntries = nextTimelineEntries;
+		referenceTimelineCursorIndex = nextTimelineEntries.length - 1;
+		currentReference = referenceSnapshot;
+		persistReferenceTimeline();
+
+		if (entryWasAppended) {
+			await appendReferenceHistoryEntry(timelineEntry).catch(() => undefined);
+			return;
+		}
+
+		await rememberLastViewedTimelineEntry();
+	}
+
+	function showTimelineEntry(index: number): void {
+		const timelineEntry = referenceTimelineEntries[index];
+
+		if (timelineEntry === undefined) {
+			return;
+		}
+
+		referenceTimelineCursorIndex = index;
+		currentReference = timelineEntry.reference;
+		persistReferenceTimeline();
+		void rememberLastViewedTimelineEntry();
 	}
 
 	function getPrecedingReferenceContexts(): ReferenceFeedContextItem[] {
@@ -174,8 +345,8 @@
 				{
 					count: requestedCount,
 					currentReferenceId,
-					recentReferenceIds: seenReferenceIds,
-					recentReferences: seenReferenceContexts,
+					recentReferenceIds: avoidanceReferenceIds,
+					recentReferences: avoidanceReferenceContexts,
 					precedingReferences: getPrecedingReferenceContexts()
 				},
 				{ fetch, basePath: base }
@@ -187,7 +358,7 @@
 
 			if (newReferences.length > 0) {
 				setReferenceQueue([...referenceQueue, ...newReferences]);
-				rememberReferenceContexts(newReferences);
+				rememberAvoidanceReferences(newReferences);
 			}
 		} catch (cause) {
 			if (referenceQueue.length === 0) {
@@ -204,8 +375,8 @@
 			{
 				count: 1,
 				currentReferenceId,
-				recentReferenceIds: seenReferenceIds,
-				recentReferences: seenReferenceContexts,
+				recentReferenceIds: avoidanceReferenceIds,
+				recentReferences: avoidanceReferenceContexts,
 				precedingReferences: getPrecedingReferenceContexts()
 			},
 			{ fetch, basePath: base }
@@ -214,19 +385,34 @@
 		return feed.references[0];
 	}
 
-	async function showNextReference() {
-		if (!canAdvance) {
+	function showPreviousReference(): void {
+		if (!canGoBack) {
 			return;
 		}
 
 		errorMessage = undefined;
+		showTimelineEntry(referenceTimelineCursorIndex - 1);
+	}
+
+	async function showNextReference(): Promise<void> {
+		if (!canGoNext) {
+			return;
+		}
+
+		errorMessage = undefined;
+
+		if (!isAtTimelineTail) {
+			showTimelineEntry(referenceTimelineCursorIndex + 1);
+			return;
+		}
+
 		const previousReference = currentReference;
 		const [queuedReference, ...remainingQueue] = referenceQueue;
 
 		if (queuedReference !== undefined) {
-			currentReference = queuedReference;
+			await appendDisplayedReferenceToTimeline(queuedReference);
 			setReferenceQueue(remainingQueue);
-			rememberReferenceContexts([previousReference, queuedReference]);
+			rememberAvoidanceReferences([previousReference, queuedReference]);
 			void ensureReferenceQueueFilled();
 			return;
 		}
@@ -240,8 +426,8 @@
 				throw new Error('No references are available right now.');
 			}
 
-			currentReference = nextReference;
-			rememberReferenceContexts([previousReference, nextReference]);
+			await appendDisplayedReferenceToTimeline(nextReference);
+			rememberAvoidanceReferences([previousReference, nextReference]);
 			void ensureReferenceQueueFilled();
 		} catch (cause) {
 			errorMessage = cause instanceof Error ? cause.message : 'Could not load the next reference.';
@@ -270,9 +456,19 @@
 						<p>{currentCategoryLabel}</p>
 					</div>
 
-					<button type="button" disabled={!canAdvance} onclick={showNextReference}>
-						{isLoadingReference ? 'Loading…' : 'Next reference'}
-					</button>
+					<div class="reference-buttons">
+						<button type="button" disabled={!canGoBack} onclick={showPreviousReference}>Back</button
+						>
+
+						<button
+							type="button"
+							class:loading={isLoadingReference && isAtTimelineTail}
+							disabled={!canGoNext}
+							onclick={showNextReference}
+						>
+							{isLoadingReference && isAtTimelineTail ? 'Loading…' : 'Next'}
+						</button>
+					</div>
 				</div>
 
 				{#if errorMessage}
@@ -375,6 +571,13 @@
 		justify-content: space-between;
 	}
 
+	.reference-buttons {
+		display: flex;
+		gap: 8px;
+		align-items: center;
+		flex-shrink: 0;
+	}
+
 	.reference-meta {
 		display: flex;
 		gap: 8px;
@@ -409,8 +612,12 @@
 	}
 
 	button:disabled {
-		cursor: wait;
+		cursor: not-allowed;
 		opacity: 0.65;
+	}
+
+	button.loading:disabled {
+		cursor: wait;
 	}
 
 	button:focus-visible,
@@ -467,6 +674,12 @@
 
 		.reference-meta {
 			flex-wrap: wrap;
+		}
+
+		.reference-buttons {
+			display: grid;
+			grid-template-columns: 1fr 1fr;
+			width: 100%;
 		}
 
 		button {

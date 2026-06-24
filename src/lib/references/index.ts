@@ -30,6 +30,24 @@ export {
 	serializeRecentReferenceIds,
 	toReferenceFeedContextItem
 } from './history';
+export {
+	appendReferenceHistoryEntry,
+	appendReferenceTimelineEntry,
+	createReferenceTimelineEntry,
+	createReferenceTimelineTabId,
+	getLastViewedReferenceHistoryEntry,
+	getRecentReferenceHistoryEntries,
+	getReferenceHistoryEntriesByIds,
+	maxReferenceHistoryEntries,
+	maxReferenceTabTimelineEntries,
+	parseReferenceTabTimelineState,
+	referenceTimelineSessionStorageKey,
+	serializeReferenceTabTimelineState,
+	setLastViewedReferenceHistoryEntryId,
+	trimReferenceTabTimelineEntries,
+	type ReferenceTabTimelineState,
+	type ReferenceTimelineEntry
+} from './timeline';
 export type {
 	DrawingReference,
 	ReferenceFeedContextItem,

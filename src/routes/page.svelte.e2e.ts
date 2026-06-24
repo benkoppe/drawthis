@@ -29,38 +29,47 @@ async function getInitialReferenceTitleForSeed(browser: Browser, seed: string): 
 	}
 }
 
-test('advances through local drawing references and avoids recent references after reload', async ({
+test('advances through drawing references and restores per-tab reference navigation', async ({
 	page
 }) => {
 	await page.goto('/');
 
 	const referenceHeading = page.getByRole('heading', { level: 1 });
 	const referenceImage = page.getByRole('img');
-	const nextButton = page.getByRole('button', { name: 'Next reference' });
+	const backButton = page.getByRole('button', { name: 'Back' });
+	const nextButton = page.getByRole('button', { name: 'Next' });
 
 	await expect(page).toHaveTitle('DrawThis');
 	await expect(referenceHeading).toBeVisible();
 	await expect(referenceImage).toBeVisible();
+	await expect(backButton).toBeDisabled();
 	await expect(nextButton).toBeEnabled();
 
-	const seenReferenceTitles = new Set<string>();
 	const firstReferenceTitle = (await referenceHeading.textContent()) ?? '';
-	seenReferenceTitles.add(firstReferenceTitle);
 
 	await nextButton.click();
 
 	await expect(referenceHeading).toBeVisible();
 	await expect(referenceHeading).not.toHaveText(firstReferenceTitle);
 	await expect(referenceImage).toBeVisible();
+	await expect(backButton).toBeEnabled();
 
 	const secondReferenceTitle = (await referenceHeading.textContent()) ?? '';
-	seenReferenceTitles.add(secondReferenceTitle);
+
+	await backButton.click();
+
+	await expect(referenceHeading).toHaveText(firstReferenceTitle);
+	await expect(backButton).toBeDisabled();
+
+	await nextButton.click();
+
+	await expect(referenceHeading).toHaveText(secondReferenceTitle);
 
 	await page.reload();
 
-	await expect(referenceHeading).toBeVisible();
+	await expect(referenceHeading).toHaveText(secondReferenceTitle);
 	await expect(referenceImage).toBeVisible();
-	expect(seenReferenceTitles.has((await referenceHeading.textContent()) ?? '')).toBe(false);
+	await expect(backButton).toBeEnabled();
 });
 
 test('uses anonymous feed seeds to vary initial references across devices', async ({ browser }) => {

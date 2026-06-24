@@ -10,7 +10,6 @@ const referenceHistoryDatabaseVersion = 1;
 const referenceHistoryEntryStoreName = 'referenceHistoryEntries';
 const referenceHistoryMetaStoreName = 'referenceHistoryMeta';
 const referenceHistorySeenAtIndexName = 'seenAt';
-const referenceHistoryReferenceIdIndexName = 'referenceId';
 const lastViewedEntryMetaKey = 'lastViewedEntryId';
 
 export interface ReferenceTimelineEntry {
@@ -38,7 +37,6 @@ interface ReferenceHistoryDatabase extends DBSchema {
 		value: ReferenceTimelineEntry;
 		indexes: {
 			[referenceHistorySeenAtIndexName]: string;
-			[referenceHistoryReferenceIdIndexName]: string;
 		};
 	};
 	[referenceHistoryMetaStoreName]: {
@@ -203,7 +201,6 @@ async function openReferenceHistoryDatabase(): Promise<
 						keyPath: 'id'
 					});
 					entryStore.createIndex(referenceHistorySeenAtIndexName, 'seenAt');
-					entryStore.createIndex(referenceHistoryReferenceIdIndexName, 'referenceId');
 				}
 
 				if (!database.objectStoreNames.contains(referenceHistoryMetaStoreName)) {

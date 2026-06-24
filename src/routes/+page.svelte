@@ -457,8 +457,14 @@
 					</div>
 
 					<div class="reference-buttons">
-						<button type="button" disabled={!canGoBack} onclick={showPreviousReference}>Back</button
+						<button
+							type="button"
+							class="secondary-button"
+							disabled={!canGoBack}
+							onclick={showPreviousReference}
 						>
+							Back
+						</button>
 
 						<button
 							type="button"
@@ -609,6 +615,15 @@
 
 	button:hover {
 		background: #374151;
+	}
+
+	.secondary-button {
+		background: #ffffff;
+		color: #111827;
+	}
+
+	.secondary-button:hover {
+		background: #f3f4f6;
 	}
 
 	button:disabled {

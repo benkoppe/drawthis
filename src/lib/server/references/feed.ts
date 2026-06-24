@@ -2,15 +2,15 @@ import {
 	defaultReferenceFeedCount,
 	maxReferenceFeedCount,
 	providerReferenceSearchPageSize,
-	type DrawingReference,
 	type ReferenceFeedRequest,
 	type ReferenceFeedResponse
 } from '$lib/references';
-import { searchReferenceProvider } from './cached-provider';
+import { collectReferenceCandidates, type ReferenceAvoidancePolicy } from './candidate-collector';
 import type { ReferenceSearchCache } from './cache';
-import { createReferenceFeedPlan, type PlannedProviderSearch } from './feed-planner';
+import { createReferenceFeedPlan } from './feed-planner';
 import type { ReferenceFeedPolicy } from './feed-policy';
-import type { ProviderSearchResult, ReferenceProvider } from './provider';
+import { sequenceReferenceCandidates } from './feed-sequencer';
+import type { ReferenceProvider } from './provider';
 import { referenceProviders } from './providers';
 
 export interface ReferenceFeedOptions {
@@ -18,26 +18,6 @@ export interface ReferenceFeedOptions {
 	policy?: ReferenceFeedPolicy;
 	random?: () => number;
 	searchCache?: ReferenceSearchCache;
-}
-
-interface ReferenceAvoidancePolicy {
-	hardReferenceIds: ReadonlySet<string>;
-	softReferenceIds: ReadonlySet<string>;
-}
-
-const referenceSelectionRanks = {
-	preferred: 0,
-	softFallback: 1,
-	hardFallback: 2
-} as const;
-
-type ReferenceSelectionRank =
-	(typeof referenceSelectionRanks)[keyof typeof referenceSelectionRanks];
-
-interface RankedReference {
-	reference: DrawingReference;
-	rank: ReferenceSelectionRank;
-	order: number;
 }
 
 function getRequestedCount(count: ReferenceFeedRequest['count']): number {
@@ -59,6 +39,10 @@ function getAvoidancePolicy(request: ReferenceFeedRequest): ReferenceAvoidancePo
 		hardReferenceIds.add(request.currentReferenceId);
 	}
 
+	for (const reference of request.precedingReferences ?? []) {
+		hardReferenceIds.add(reference.id);
+	}
+
 	return {
 		hardReferenceIds,
 		softReferenceIds: new Set(
@@ -69,74 +53,6 @@ function getAvoidancePolicy(request: ReferenceFeedRequest): ReferenceAvoidancePo
 
 function getProviderSearchCount(count: number): number {
 	return Math.max(count, providerReferenceSearchPageSize);
-}
-
-function getReferenceSelectionRank(
-	reference: DrawingReference,
-	avoidancePolicy: ReferenceAvoidancePolicy
-): ReferenceSelectionRank {
-	if (avoidancePolicy.hardReferenceIds.has(reference.id)) {
-		return referenceSelectionRanks.hardFallback;
-	}
-
-	if (avoidancePolicy.softReferenceIds.has(reference.id)) {
-		return referenceSelectionRanks.softFallback;
-	}
-
-	return referenceSelectionRanks.preferred;
-}
-
-function selectRankedReferences(
-	rankedReferences: Iterable<RankedReference>,
-	count: number
-): DrawingReference[] {
-	return [...rankedReferences]
-		.sort((left, right) => left.rank - right.rank || left.order - right.order)
-		.slice(0, count)
-		.map(({ reference }) => reference);
-}
-
-async function searchForReferences(
-	searches: readonly PlannedProviderSearch[],
-	count: number,
-	avoidancePolicy: ReferenceAvoidancePolicy,
-	searchCache: ReferenceSearchCache | undefined
-): Promise<DrawingReference[]> {
-	const rankedReferences = new Map<string, RankedReference>();
-	let preferredReferenceCount = 0;
-	let order = 0;
-
-	for (const search of searches) {
-		let result: ProviderSearchResult;
-
-		try {
-			result = await searchReferenceProvider(search.provider, search.request, searchCache);
-		} catch (cause) {
-			console.warn(`Reference provider "${search.provider.id}" failed`, cause);
-			continue;
-		}
-
-		for (const reference of result.references) {
-			if (rankedReferences.has(reference.id)) {
-				continue;
-			}
-
-			const rank = getReferenceSelectionRank(reference, avoidancePolicy);
-
-			if (rank === referenceSelectionRanks.preferred) {
-				preferredReferenceCount += 1;
-			}
-
-			rankedReferences.set(reference.id, { reference, rank, order });
-			order += 1;
-		}
-
-		if (preferredReferenceCount >= count) {
-			return selectRankedReferences(rankedReferences.values(), count);
-		}
-	}
-
-	return selectRankedReferences(rankedReferences.values(), count);
 }
 
 export async function getReferenceFeed(
@@ -152,13 +68,18 @@ export async function getReferenceFeed(
 		random: options.random,
 		searchCount: getProviderSearchCount(count)
 	});
+	const candidates = await collectReferenceCandidates(
+		plan.searches,
+		count,
+		avoidancePolicy,
+		options.searchCache
+	);
 
 	return {
-		references: await searchForReferences(
-			plan.searches,
+		references: sequenceReferenceCandidates(candidates, {
 			count,
-			avoidancePolicy,
-			options.searchCache
-		)
+			precedingReferences: request.precedingReferences,
+			recentReferences: request.recentReferences
+		})
 	};
 }

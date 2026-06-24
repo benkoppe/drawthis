@@ -2,15 +2,21 @@
 	import { asset, base } from '$app/paths';
 	import {
 		imagePreloadAheadCount,
+		mergeRecentReferenceContexts,
 		mergeRecentReferenceIds,
+		parseRecentReferenceContexts,
 		parseRecentReferenceIds,
 		referenceCategoryLabels,
+		referenceContextHistoryStorageKey,
 		referenceHistoryStorageKey,
 		referenceQueueLowWatermark,
 		referenceQueueTargetSize,
 		requestReferenceFeed,
+		serializeRecentReferenceContexts,
 		serializeRecentReferenceIds,
-		type DrawingReference
+		toReferenceFeedContextItem,
+		type DrawingReference,
+		type ReferenceFeedContextItem
 	} from '$lib/references';
 	import { onMount } from 'svelte';
 	import type { PageData } from './$types';
@@ -22,6 +28,7 @@
 	let currentReference = $state<DrawingReference | undefined>(initialReferences[0]);
 	let referenceQueue = $state<DrawingReference[]>(initialReferences.slice(1));
 	let seenReferenceIds = $state<string[]>([]);
+	let seenReferenceContexts = $state<ReferenceFeedContextItem[]>([]);
 	let preloadedReferenceIds: string[] = [];
 	let isReady = $state(false);
 	let isLoadingReference = $state(false);
@@ -41,12 +48,19 @@
 	);
 
 	onMount(() => {
+		seenReferenceContexts = mergeRecentReferenceContexts(
+			readStoredRecentReferenceContexts(),
+			data.recentReferences,
+			initialReferences.map(toReferenceFeedContextItem)
+		);
 		seenReferenceIds = mergeRecentReferenceIds(
 			readStoredRecentReferenceIds(),
 			data.recentReferenceIds,
+			seenReferenceContexts.map((reference) => reference.id),
 			referenceQueue.map((reference) => reference.id)
 		);
 		writeStoredRecentReferenceIds(seenReferenceIds);
+		writeStoredRecentReferenceContexts(seenReferenceContexts);
 		isReady = true;
 		preloadQueuedImages();
 		void ensureReferenceQueueFilled();
@@ -64,6 +78,14 @@
 		}
 	}
 
+	function readStoredRecentReferenceContexts(): ReferenceFeedContextItem[] {
+		try {
+			return parseRecentReferenceContexts(localStorage.getItem(referenceContextHistoryStorageKey));
+		} catch {
+			return [];
+		}
+	}
+
 	function writeStoredRecentReferenceIds(referenceIds: readonly string[]): void {
 		try {
 			localStorage.setItem(referenceHistoryStorageKey, serializeRecentReferenceIds(referenceIds));
@@ -72,12 +94,37 @@
 		}
 	}
 
-	function rememberReferences(referenceIds: readonly (string | undefined)[]): void {
+	function writeStoredRecentReferenceContexts(
+		referenceContexts: readonly ReferenceFeedContextItem[]
+	): void {
+		try {
+			localStorage.setItem(
+				referenceContextHistoryStorageKey,
+				serializeRecentReferenceContexts(referenceContexts)
+			);
+		} catch {
+			// Ignore unavailable or full browser storage; the server cookie still tracks recent history.
+		}
+	}
+
+	function rememberReferenceContexts(references: readonly (DrawingReference | undefined)[]): void {
+		const referenceContexts = references
+			.filter((reference): reference is DrawingReference => reference !== undefined)
+			.map(toReferenceFeedContextItem);
+
+		seenReferenceContexts = mergeRecentReferenceContexts(seenReferenceContexts, referenceContexts);
 		seenReferenceIds = mergeRecentReferenceIds(
 			seenReferenceIds,
-			referenceIds.filter((id): id is string => id !== undefined)
+			referenceContexts.map((reference) => reference.id)
 		);
 		writeStoredRecentReferenceIds(seenReferenceIds);
+		writeStoredRecentReferenceContexts(seenReferenceContexts);
+	}
+
+	function getPrecedingReferenceContexts(): ReferenceFeedContextItem[] {
+		return [currentReference, ...referenceQueue]
+			.filter((reference): reference is DrawingReference => reference !== undefined)
+			.map(toReferenceFeedContextItem);
 	}
 
 	function setReferenceQueue(nextQueue: DrawingReference[]): void {
@@ -124,7 +171,13 @@
 		try {
 			const requestedCount = Math.max(referenceQueueTargetSize - referenceQueue.length, 1);
 			const feed = await requestReferenceFeed(
-				{ count: requestedCount, currentReferenceId, recentReferenceIds: seenReferenceIds },
+				{
+					count: requestedCount,
+					currentReferenceId,
+					recentReferenceIds: seenReferenceIds,
+					recentReferences: seenReferenceContexts,
+					precedingReferences: getPrecedingReferenceContexts()
+				},
 				{ fetch, basePath: base }
 			);
 			const queuedReferenceIds = new Set(referenceQueue.map((reference) => reference.id));
@@ -134,7 +187,7 @@
 
 			if (newReferences.length > 0) {
 				setReferenceQueue([...referenceQueue, ...newReferences]);
-				rememberReferences(newReferences.map((reference) => reference.id));
+				rememberReferenceContexts(newReferences);
 			}
 		} catch (cause) {
 			if (referenceQueue.length === 0) {
@@ -148,7 +201,13 @@
 	async function loadImmediateFallbackReference(): Promise<DrawingReference | undefined> {
 		const currentReferenceId = currentReference?.id;
 		const feed = await requestReferenceFeed(
-			{ count: 1, currentReferenceId, recentReferenceIds: seenReferenceIds },
+			{
+				count: 1,
+				currentReferenceId,
+				recentReferenceIds: seenReferenceIds,
+				recentReferences: seenReferenceContexts,
+				precedingReferences: getPrecedingReferenceContexts()
+			},
 			{ fetch, basePath: base }
 		);
 
@@ -161,13 +220,13 @@
 		}
 
 		errorMessage = undefined;
-		const previousReferenceId = currentReference?.id;
+		const previousReference = currentReference;
 		const [queuedReference, ...remainingQueue] = referenceQueue;
 
 		if (queuedReference !== undefined) {
 			currentReference = queuedReference;
 			setReferenceQueue(remainingQueue);
-			rememberReferences([previousReferenceId, queuedReference.id]);
+			rememberReferenceContexts([previousReference, queuedReference]);
 			void ensureReferenceQueueFilled();
 			return;
 		}
@@ -182,7 +241,7 @@
 			}
 
 			currentReference = nextReference;
-			rememberReferences([previousReferenceId, nextReference.id]);
+			rememberReferenceContexts([previousReference, nextReference]);
 			void ensureReferenceQueueFilled();
 		} catch (cause) {
 			errorMessage = cause instanceof Error ? cause.message : 'Could not load the next reference.';

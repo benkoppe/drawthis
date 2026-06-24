@@ -1,10 +1,16 @@
-import { mergeRecentReferenceIds } from '$lib/references';
+import {
+	mergeRecentReferenceContexts,
+	mergeRecentReferenceIds,
+	toReferenceFeedContextItem
+} from '$lib/references';
 import { readOrCreateReferenceFeedSeedCookie } from '$lib/server/references/feed-seed-cookie';
 import { createReferenceSearchCache } from '$lib/server/references/cache';
 import { parseReferenceFeedRequest } from '$lib/server/references/feed-request';
 import { getReferenceFeed } from '$lib/server/references/feed';
 import {
+	readRecentReferenceContextsCookie,
 	readRecentReferenceIdsCookie,
+	writeRecentReferenceContextsCookie,
 	writeRecentReferenceIdsCookie
 } from '$lib/server/references/history-cookie';
 import { createSeededRandom } from '$lib/server/references/seeded-random';
@@ -23,24 +29,41 @@ export const POST: RequestHandler = async ({ cookies, platform, request }) => {
 	try {
 		const feedSeed = readOrCreateReferenceFeedSeedCookie(cookies);
 		const parsedRequest = parseReferenceFeedRequest(body);
+		const cookieReferenceContexts = readRecentReferenceContextsCookie(cookies);
+		const recentReferenceContexts = mergeRecentReferenceContexts(
+			cookieReferenceContexts,
+			parsedRequest.recentReferences ?? []
+		);
+		const precedingReferenceIds = (parsedRequest.precedingReferences ?? []).map(
+			(reference) => reference.id
+		);
 		const recentReferenceIds = mergeRecentReferenceIds(
 			readRecentReferenceIdsCookie(cookies),
+			cookieReferenceContexts.map((reference) => reference.id),
 			parsedRequest.recentReferenceIds ?? [],
+			precedingReferenceIds,
 			parsedRequest.currentReferenceId ? [parsedRequest.currentReferenceId] : []
 		);
 		const random = createSeededRandom(
 			`next:${feedSeed}:${parsedRequest.currentReferenceId ?? ''}:${recentReferenceIds.join('\0')}`
 		);
 		const feed = await getReferenceFeed(
-			{ ...parsedRequest, recentReferenceIds },
+			{ ...parsedRequest, recentReferenceIds, recentReferences: recentReferenceContexts },
 			{ random, searchCache: createReferenceSearchCache(platform) }
 		);
+		const feedReferenceContexts = feed.references.map(toReferenceFeedContextItem);
 		const updatedRecentReferenceIds = mergeRecentReferenceIds(
 			recentReferenceIds,
 			feed.references.map((reference) => reference.id)
 		);
+		const updatedRecentReferenceContexts = mergeRecentReferenceContexts(
+			recentReferenceContexts,
+			parsedRequest.precedingReferences ?? [],
+			feedReferenceContexts
+		);
 
 		writeRecentReferenceIdsCookie(cookies, updatedRecentReferenceIds);
+		writeRecentReferenceContextsCookie(cookies, updatedRecentReferenceContexts);
 
 		return json(feed);
 	} catch (cause) {

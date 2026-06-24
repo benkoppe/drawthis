@@ -9,6 +9,7 @@ export {
 	defaultReferenceFeedCount,
 	imagePreloadAheadCount,
 	initialReferenceFeedCount,
+	maxRecentReferenceContexts,
 	maxRecentReferenceIds,
 	maxReferenceFeedCount,
 	providerReferenceSearchPageSize,
@@ -17,14 +18,21 @@ export {
 	trimRecentReferenceIds
 } from './feed';
 export {
+	mergeRecentReferenceContexts,
 	mergeRecentReferenceIds,
+	parseRecentReferenceContexts,
 	parseRecentReferenceIds,
+	referenceContextHistoryCookieName,
+	referenceContextHistoryStorageKey,
 	referenceHistoryCookieName,
 	referenceHistoryStorageKey,
-	serializeRecentReferenceIds
+	serializeRecentReferenceContexts,
+	serializeRecentReferenceIds,
+	toReferenceFeedContextItem
 } from './history';
 export type {
 	DrawingReference,
+	ReferenceFeedContextItem,
 	ReferenceFeedPreferences,
 	ReferenceFeedRequest,
 	ReferenceFeedResponse,

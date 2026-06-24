@@ -243,6 +243,48 @@ describe('getReferenceFeed', () => {
 		expect(requests[0]?.count).toBe(10);
 	});
 
+	it('sequences batch results across categories instead of clumping the first search category', async () => {
+		const provider = makeProvider(
+			(request) => ({
+				references: Array.from({ length: request.count }, (_, index) =>
+					makeReference(`${request.category}-${index}`, request.category)
+				)
+			}),
+			{
+				categories: ['interior', 'street', 'figure-study', 'still-life'],
+				supportsSearch: true
+			}
+		);
+		const feed = await getReferenceFeed({ count: 4 }, { providers: [provider], random: () => 0 });
+
+		expect(feed.references.map((reference) => reference.category)).toEqual([
+			'interior',
+			'street',
+			'figure-study',
+			'still-life'
+		]);
+	});
+
+	it('starts a refilled batch with a different category than the visible queue tail when possible', async () => {
+		const provider = makeProvider(
+			(request) => ({
+				references: Array.from({ length: request.count }, (_, index) =>
+					makeReference(`${request.category}-${index}`, request.category)
+				)
+			}),
+			{ categories: ['interior', 'street'], supportsSearch: true }
+		);
+		const feed = await getReferenceFeed(
+			{
+				count: 2,
+				precedingReferences: [{ id: 'test:queued', category: 'interior', providerId: 'test' }]
+			},
+			{ providers: [provider], random: () => 0 }
+		);
+
+		expect(feed.references.map((reference) => reference.category)).toEqual(['street', 'interior']);
+	});
+
 	it('rejects invalid counts', async () => {
 		await expect(getReferenceFeed({ count: 0 })).rejects.toThrow(
 			'count must be an integer between 1 and 10'

@@ -33,10 +33,19 @@ export interface ReferenceFeedPreferences {
 	enabledCategories?: readonly ReferenceCategory[];
 }
 
+export interface ReferenceFeedContextItem {
+	id: string;
+	category: ReferenceCategory;
+	providerId?: ReferenceProviderId;
+	seedId?: string;
+}
+
 export interface ReferenceFeedRequest {
 	count?: number;
 	currentReferenceId?: string;
 	recentReferenceIds?: readonly string[];
+	recentReferences?: readonly ReferenceFeedContextItem[];
+	precedingReferences?: readonly ReferenceFeedContextItem[];
 	preferences?: ReferenceFeedPreferences;
 }
 

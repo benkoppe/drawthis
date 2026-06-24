@@ -27,6 +27,33 @@ describe('parseReferenceFeedRequest', () => {
 		});
 	});
 
+	it('parses recent and preceding reference contexts', () => {
+		expect(
+			parseReferenceFeedRequest({
+				recentReferences: [
+					{ id: 'pexels:1', category: 'street', providerId: 'pexels' },
+					{ id: 'pexels:1', category: 'street', providerId: 'pexels' }
+				],
+				precedingReferences: [
+					{ id: 'openverse:2', category: 'plant', providerId: 'openverse', seedId: 'plant' }
+				]
+			})
+		).toEqual({
+			recentReferences: [{ id: 'pexels:1', category: 'street', providerId: 'pexels' }],
+			precedingReferences: [
+				{ id: 'openverse:2', category: 'plant', providerId: 'openverse', seedId: 'plant' }
+			]
+		});
+	});
+
+	it('rejects invalid reference contexts', () => {
+		expectBadRequest(
+			() =>
+				parseReferenceFeedRequest({ precedingReferences: [{ id: 'pexels:1', category: 'bad' }] }),
+			'precedingReferences.category is not supported'
+		);
+	});
+
 	it('rejects non-string current reference ids', () => {
 		expectBadRequest(
 			() => parseReferenceFeedRequest({ currentReferenceId: 123 }),

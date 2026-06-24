@@ -6,6 +6,7 @@ export const referenceQueueTargetSize = 6;
 export const referenceQueueLowWatermark = 2;
 export const imagePreloadAheadCount = 2;
 export const maxRecentReferenceIds = 50;
+export const maxRecentReferenceContexts = 12;
 
 export function trimRecentReferenceIds(referenceIds: readonly string[]): string[] {
 	return referenceIds.slice(-maxRecentReferenceIds);

@@ -201,7 +201,7 @@ export function createReferenceFeedPlan(
 		random
 	);
 
-	for (const categoryPolicy of categoryPolicies) {
+	const searchesByCategory = categoryPolicies.map((categoryPolicy) => {
 		const compatibleProviders = orderCompatibleProviders(
 			options.providers.filter((provider) =>
 				providerSupportsCategory(provider, categoryPolicy.category)
@@ -216,6 +216,7 @@ export function createReferenceFeedPlan(
 			})),
 			random
 		);
+		const categorySearches: PlannedProviderSearch[] = [];
 
 		for (const seed of seeds) {
 			for (const provider of compatibleProviders) {
@@ -234,12 +235,24 @@ export function createReferenceFeedPlan(
 				}
 
 				selectedSearchKeys.add(searchKey);
-				searches.push({
+				categorySearches.push({
 					provider,
 					category: categoryPolicy.category,
 					seed,
 					request: providerRequest
 				});
+			}
+		}
+
+		return categorySearches;
+	});
+
+	while (searchesByCategory.some((categorySearches) => categorySearches.length > 0)) {
+		for (const categorySearches of searchesByCategory) {
+			const search = categorySearches.shift();
+
+			if (search !== undefined) {
+				searches.push(search);
 			}
 		}
 	}

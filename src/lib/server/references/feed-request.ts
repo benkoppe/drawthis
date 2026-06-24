@@ -2,6 +2,7 @@ import {
 	isReferenceCategory,
 	trimRecentReferenceIds,
 	type ReferenceCategory,
+	type ReferenceFeedContextItem,
 	type ReferenceFeedPreferences,
 	type ReferenceFeedRequest
 } from '$lib/references';
@@ -33,6 +34,62 @@ function parseEnabledCategories(value: unknown): ReferenceCategory[] {
 	}
 
 	return categories;
+}
+
+function parseReferenceFeedContextItems(
+	value: unknown,
+	fieldName: string
+): ReferenceFeedContextItem[] {
+	if (!Array.isArray(value)) {
+		throw error(400, `${fieldName} must be an array`);
+	}
+
+	const references: ReferenceFeedContextItem[] = [];
+	const referenceIds = new Set<string>();
+
+	for (const reference of value) {
+		if (!isPlainObject(reference)) {
+			throw error(400, `${fieldName} entries must be objects`);
+		}
+
+		if (typeof reference.id !== 'string' || reference.id.length === 0) {
+			throw error(400, `${fieldName}.id must be a non-empty string`);
+		}
+
+		if (!isReferenceCategory(reference.category)) {
+			throw error(400, `${fieldName}.category is not supported`);
+		}
+
+		if (reference.providerId !== undefined && typeof reference.providerId !== 'string') {
+			throw error(400, `${fieldName}.providerId must be a string`);
+		}
+
+		if (reference.seedId !== undefined && typeof reference.seedId !== 'string') {
+			throw error(400, `${fieldName}.seedId must be a string`);
+		}
+
+		if (referenceIds.has(reference.id)) {
+			continue;
+		}
+
+		const parsedReference: ReferenceFeedContextItem = {
+			id: reference.id,
+			category: reference.category
+		};
+
+		if (reference.providerId !== undefined && reference.providerId.length > 0) {
+			parsedReference.providerId = reference.providerId;
+		}
+
+		if (reference.seedId !== undefined && reference.seedId.length > 0) {
+			parsedReference.seedId = reference.seedId;
+		}
+
+		referenceIds.add(reference.id);
+		references.push(parsedReference);
+	}
+
+	return references;
 }
 
 function parsePreferences(value: unknown): ReferenceFeedPreferences {
@@ -85,6 +142,20 @@ export function parseReferenceFeedRequest(body: unknown): ReferenceFeedRequest {
 		}
 
 		request.recentReferenceIds = trimRecentReferenceIds(body.recentReferenceIds);
+	}
+
+	if (body.recentReferences !== undefined) {
+		request.recentReferences = parseReferenceFeedContextItems(
+			body.recentReferences,
+			'recentReferences'
+		);
+	}
+
+	if (body.precedingReferences !== undefined) {
+		request.precedingReferences = parseReferenceFeedContextItems(
+			body.precedingReferences,
+			'precedingReferences'
+		);
 	}
 
 	if (body.preferences !== undefined) {

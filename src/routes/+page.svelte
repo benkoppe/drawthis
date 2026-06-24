@@ -39,7 +39,7 @@
 	// svelte-ignore state_referenced_locally
 	const initialReferences = data.references;
 
-	let currentReference = $state<DrawingReference | undefined>(initialReferences[0]);
+	let currentReference = $state<DrawingReference | undefined>();
 	let referenceQueue = $state<DrawingReference[]>(initialReferences.slice(1));
 	let avoidanceReferenceIds = $state<string[]>([]);
 	let avoidanceReferenceContexts = $state<ReferenceFeedContextItem[]>([]);
@@ -91,9 +91,8 @@
 		await initializeReferenceTimeline();
 
 		if (currentReference !== undefined) {
-			setReferenceQueue(
-				referenceQueue.filter((reference) => reference.id !== currentReference?.id)
-			);
+			const currentReferenceId = currentReference.id;
+			setReferenceQueue(referenceQueue.filter((reference) => reference.id !== currentReferenceId));
 			rememberAvoidanceReferences([currentReference]);
 		}
 
@@ -239,8 +238,10 @@
 			return;
 		}
 
-		if (currentReference !== undefined) {
-			await appendDisplayedReferenceToTimeline(currentReference);
+		const [initialReference] = initialReferences;
+
+		if (initialReference !== undefined) {
+			await appendDisplayedReferenceToTimeline(initialReference);
 		}
 	}
 
@@ -448,7 +449,11 @@
 	</header>
 
 	<section class="practice-loop" aria-labelledby="reference-heading">
-		{#if currentReference}
+		{#if !isReady}
+			<div class="empty-state" aria-live="polite">
+				<h1 id="reference-heading">Loading references…</h1>
+			</div>
+		{:else if currentReference}
 			<div class="reference-toolbar" aria-live="polite">
 				<div class="reference-controls">
 					<div class="reference-meta">

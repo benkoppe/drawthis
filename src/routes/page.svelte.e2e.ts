@@ -21,6 +21,7 @@ async function getInitialReferenceTitleForSeed(browser: Browser, seed: string): 
 		await page.goto('/');
 
 		const referenceHeading = page.getByRole('heading', { level: 1 });
+		await expect(page.getByRole('img')).toBeVisible();
 		await expect(referenceHeading).toBeVisible();
 
 		return (await referenceHeading.textContent()) ?? '';

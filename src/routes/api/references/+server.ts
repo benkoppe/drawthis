@@ -7,6 +7,7 @@ import { readOrCreateReferenceFeedSeedCookie } from '$lib/server/references/feed
 import { createReferenceSearchCache } from '$lib/server/references/cache';
 import { parseReferenceFeedRequest } from '$lib/server/references/feed-request';
 import { getReferenceFeed } from '$lib/server/references/feed';
+import { isReferenceFeedUnavailableError } from '$lib/server/references/feed-error';
 import {
 	readRecentReferenceContextsCookie,
 	readRecentReferenceIdsCookie,
@@ -69,6 +70,10 @@ export const POST: RequestHandler = async ({ cookies, platform, request }) => {
 	} catch (cause) {
 		if (cause instanceof Error && cause.message.startsWith('count must be')) {
 			throw error(400, cause.message);
+		}
+
+		if (isReferenceFeedUnavailableError(cause)) {
+			throw error(503, cause.message);
 		}
 
 		throw cause;

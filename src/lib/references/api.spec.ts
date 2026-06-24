@@ -26,7 +26,7 @@ describe('requestReferenceFeed', () => {
 				'/base/api/references',
 				{
 					method: 'POST',
-					headers: { 'content-type': 'application/json' },
+					headers: { accept: 'application/json', 'content-type': 'application/json' },
 					body: JSON.stringify({
 						count: 1,
 						currentReferenceId: 'local:room-interior',
@@ -38,7 +38,16 @@ describe('requestReferenceFeed', () => {
 		]);
 	});
 
-	it('throws when the app API rejects the request', async () => {
+	it('throws the app API error message when the app API rejects the request with JSON', async () => {
+		const fetcher: typeof fetch = async () =>
+			Response.json({ message: 'No reference providers returned references.' }, { status: 503 });
+
+		await expect(requestReferenceFeed({ count: 1 }, { fetch: fetcher })).rejects.toThrow(
+			'No reference providers returned references.'
+		);
+	});
+
+	it('throws a stable fallback when the app API rejects the request without JSON', async () => {
 		const fetcher: typeof fetch = async () => new Response(null, { status: 500 });
 
 		await expect(requestReferenceFeed({ count: 1 }, { fetch: fetcher })).rejects.toThrow(

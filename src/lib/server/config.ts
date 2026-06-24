@@ -90,7 +90,7 @@ export function parseServerConfig(
 		parseOptionalBoolean(
 			environment.DRAWTHIS_LOCAL_REFERENCES_ENABLED,
 			'DRAWTHIS_LOCAL_REFERENCES_ENABLED'
-		) ?? true;
+		) ?? false;
 	const pexelsApiKey = environment.DRAWTHIS_PEXELS_API_KEY?.trim();
 	const pexels = pexelsEnabled
 		? {
@@ -129,11 +129,13 @@ export function parseServerConfig(
 	};
 }
 
-export const serverConfig = parseServerConfig({
-	DRAWTHIS_PEXELS_ENABLED,
-	DRAWTHIS_PEXELS_API_KEY,
-	DRAWTHIS_PEXELS_API_BASE_URL,
-	DRAWTHIS_OPENVERSE_ENABLED,
-	DRAWTHIS_OPENVERSE_API_BASE_URL,
-	DRAWTHIS_LOCAL_REFERENCES_ENABLED
-});
+export function getServerConfig(): ServerConfig {
+	return parseServerConfig({
+		DRAWTHIS_PEXELS_ENABLED,
+		DRAWTHIS_PEXELS_API_KEY,
+		DRAWTHIS_PEXELS_API_BASE_URL,
+		DRAWTHIS_OPENVERSE_ENABLED,
+		DRAWTHIS_OPENVERSE_API_BASE_URL,
+		DRAWTHIS_LOCAL_REFERENCES_ENABLED
+	});
+}

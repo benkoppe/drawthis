@@ -18,11 +18,7 @@ Install dependencies:
 pnpm install
 ```
 
-Start the development server:
-
-```sh
-pnpm dev
-```
+Configure at least one reference provider before starting the development server.
 
 ### Reference provider setup
 
@@ -32,7 +28,7 @@ Create a local environment file:
 cp .env.example .env
 ```
 
-Every reference provider is explicitly toggleable through private server env vars. When multiple providers are enabled, DrawThis tries them in this order: Pexels, Openverse, then local.
+Every reference provider is explicitly toggleable through private server env vars and defaults to disabled. At least one provider must be explicitly enabled. When multiple providers are enabled, DrawThis tries them in this order: Pexels, Openverse, then local.
 
 Pexels-only production-style setup:
 
@@ -67,7 +63,13 @@ Optional Openverse override for tests against a local/mock Openverse-compatible 
 DRAWTHIS_OPENVERSE_ENABLED=true DRAWTHIS_OPENVERSE_API_BASE_URL=http://localhost:8788/v1 pnpm dev
 ```
 
-At least one provider must be enabled. Local references are mock/dev assets, not a production-quality fallback. Keep provider credentials server-side and never commit secrets or expose them to the browser.
+At least one provider must be explicitly enabled. Local references are mock/dev assets, not a production-quality fallback. Keep provider credentials server-side and never commit secrets or expose them to the browser.
+
+Start the development server after configuring a provider:
+
+```sh
+pnpm dev
+```
 
 Provider search metadata is cached server-side through the Cloudflare Cache API when available, with an in-memory fallback for local/dev/test runtimes. DrawThis caches normalized provider results according to each provider's cache policy and does not proxy or cache provider image bytes unless a provider explicitly allows that separately.
 

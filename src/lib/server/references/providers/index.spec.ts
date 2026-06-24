@@ -7,10 +7,12 @@ const openverseConfig = { apiBaseUrl: 'https://api.openverse.org/v1' };
 const localConfig = { enabled: true as const };
 
 describe('createReferenceProviders', () => {
-	it('registers local references for the default parsed config', () => {
-		expect(createReferenceProviders(parseServerConfig({})).map((provider) => provider.id)).toEqual([
-			'local'
-		]);
+	it('registers local references when local references are explicitly enabled', () => {
+		expect(
+			createReferenceProviders(
+				parseServerConfig({ DRAWTHIS_LOCAL_REFERENCES_ENABLED: 'true' })
+			).map((provider) => provider.id)
+		).toEqual(['local']);
 	});
 
 	it('registers Pexels only', () => {

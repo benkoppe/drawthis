@@ -1,6 +1,10 @@
 import type { DrawingReference } from '$lib/references';
 import { searchReferenceProvider } from './cached-provider';
 import type { ReferenceSearchCache } from './cache';
+import {
+	createReferenceFeedUnavailableError,
+	type ReferenceProviderFailureAttempt
+} from './feed-error';
 import type { PlannedProviderSearch } from './feed-planner';
 import {
 	referenceSelectionRanks,
@@ -64,6 +68,7 @@ export async function collectReferenceCandidates(
 ): Promise<ReferenceCandidate[]> {
 	const candidatesByReferenceId = new Map<string, ReferenceCandidate>();
 	const plannedCategoryCount = getPlannedCategoryCount(searches);
+	const providerFailures: ReferenceProviderFailureAttempt[] = [];
 	let order = 0;
 
 	for (const search of searches) {
@@ -73,6 +78,11 @@ export async function collectReferenceCandidates(
 			result = await searchReferenceProvider(search.provider, search.request, searchCache);
 		} catch (cause) {
 			console.warn(`Reference provider "${search.provider.id}" failed`, cause);
+			providerFailures.push({
+				providerId: search.provider.id,
+				providerName: search.provider.name,
+				cause
+			});
 			continue;
 		}
 
@@ -99,6 +109,10 @@ export async function collectReferenceCandidates(
 		) {
 			break;
 		}
+	}
+
+	if (candidatesByReferenceId.size === 0 && providerFailures.length > 0) {
+		throw createReferenceFeedUnavailableError(providerFailures);
 	}
 
 	return [...candidatesByReferenceId.values()];

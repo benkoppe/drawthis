@@ -191,6 +191,31 @@ describe('getReferenceFeed', () => {
 		}
 	});
 
+	it('throws provider failures when no fallback returns references', async () => {
+		const providerError = new Error('upstream unavailable');
+		const warning = vi.spyOn(console, 'warn').mockImplementation(() => {});
+		const failingProvider = makeProvider(
+			() => {
+				throw providerError;
+			},
+			{ id: 'failing' }
+		);
+
+		try {
+			await expect(
+				getReferenceFeed(
+					{ count: 1, preferences: { enabledCategories: ['still-life'] } },
+					{ providers: [failingProvider], random: () => 0 }
+				)
+			).rejects.toThrow(
+				'No reference providers returned references. Provider failures: Test provider (failing): 1 failed search.'
+			);
+			expect(warning).toHaveBeenCalledWith('Reference provider "failing" failed', providerError);
+		} finally {
+			warning.mockRestore();
+		}
+	});
+
 	it('restricts references to enabled category preferences', async () => {
 		const feed = await getReferenceFeed(
 			{ count: 1, preferences: { enabledCategories: ['plant'] } },

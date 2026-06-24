@@ -38,6 +38,6 @@ export const variables = defineEnvVars({
 	},
 	DRAWTHIS_LOCAL_REFERENCES_ENABLED: {
 		schema: optionalStringSchema,
-		description: 'Enable the server-side local mock reference provider. Defaults to true.'
+		description: 'Enable the server-side local mock reference provider when set to true.'
 	}
 });

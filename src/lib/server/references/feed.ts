@@ -11,7 +11,7 @@ import { createReferenceFeedPlan } from './feed-planner';
 import type { ReferenceFeedPolicy } from './feed-policy';
 import { sequenceReferenceCandidates } from './feed-sequencer';
 import type { ReferenceProvider } from './provider';
-import { referenceProviders } from './providers';
+import { createReferenceProviders } from './providers';
 
 export interface ReferenceFeedOptions {
 	providers?: readonly ReferenceProvider[];
@@ -60,7 +60,7 @@ export async function getReferenceFeed(
 	options: ReferenceFeedOptions = {}
 ): Promise<ReferenceFeedResponse> {
 	const count = getRequestedCount(request.count);
-	const providers = options.providers ?? referenceProviders;
+	const providers = options.providers ?? createReferenceProviders();
 	const avoidancePolicy = getAvoidancePolicy(request);
 	const plan = createReferenceFeedPlan(request, {
 		providers,

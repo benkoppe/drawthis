@@ -7,6 +7,7 @@ import {
 import { readOrCreateReferenceFeedSeedCookie } from '$lib/server/references/feed-seed-cookie';
 import { createReferenceSearchCache } from '$lib/server/references/cache';
 import { getReferenceFeed } from '$lib/server/references/feed';
+import { isReferenceFeedUnavailableError } from '$lib/server/references/feed-error';
 import {
 	readRecentReferenceContextsCookie,
 	readRecentReferenceIdsCookie,
@@ -14,6 +15,7 @@ import {
 	writeRecentReferenceIdsCookie
 } from '$lib/server/references/history-cookie';
 import { createSeededRandom } from '$lib/server/references/seeded-random';
+import { error } from '@sveltejs/kit';
 import type { PageServerLoad } from './$types';
 
 export const load: PageServerLoad = async ({ cookies, platform }) => {
@@ -31,7 +33,13 @@ export const load: PageServerLoad = async ({ cookies, platform }) => {
 			recentReferences: recentReferenceContexts
 		},
 		{ random, searchCache: createReferenceSearchCache(platform) }
-	);
+	).catch((cause: unknown) => {
+		if (isReferenceFeedUnavailableError(cause)) {
+			throw error(503, cause.message);
+		}
+
+		throw cause;
+	});
 	const feedReferenceContexts = feed.references.map(toReferenceFeedContextItem);
 	const updatedRecentReferenceIds = mergeRecentReferenceIds(
 		recentReferenceIds,

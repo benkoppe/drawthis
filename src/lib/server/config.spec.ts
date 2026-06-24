@@ -2,27 +2,22 @@ import { describe, expect, it } from 'vitest';
 import { parseServerConfig } from './config';
 
 describe('parseServerConfig', () => {
-	it('enables only local references by default', () => {
-		expect(parseServerConfig({}).references).toEqual({
-			pexels: undefined,
-			openverse: undefined,
-			local: { enabled: true }
-		});
+	it('rejects configs with all provider toggles omitted', () => {
+		expect(() => parseServerConfig({})).toThrow('At least one reference provider must be enabled');
 	});
 
 	it('keeps Pexels disabled when an API key is present without the enable toggle', () => {
-		expect(parseServerConfig({ DRAWTHIS_PEXELS_API_KEY: 'pexels-key' }).references).toEqual({
-			pexels: undefined,
-			openverse: undefined,
-			local: { enabled: true }
-		});
+		expect(() => parseServerConfig({ DRAWTHIS_PEXELS_API_KEY: 'pexels-key' })).toThrow(
+			'At least one reference provider must be enabled'
+		);
 	});
 
 	it('keeps Pexels disabled when explicitly disabled even if an API key is present', () => {
 		expect(
 			parseServerConfig({
 				DRAWTHIS_PEXELS_ENABLED: 'false',
-				DRAWTHIS_PEXELS_API_KEY: 'pexels-key'
+				DRAWTHIS_PEXELS_API_KEY: 'pexels-key',
+				DRAWTHIS_LOCAL_REFERENCES_ENABLED: 'true'
 			}).references.pexels
 		).toBeUndefined();
 	});
@@ -65,7 +60,8 @@ describe('parseServerConfig', () => {
 		expect(
 			parseServerConfig({
 				DRAWTHIS_PEXELS_API_BASE_URL: 'not a url',
-				DRAWTHIS_OPENVERSE_API_BASE_URL: 'also not a url'
+				DRAWTHIS_OPENVERSE_API_BASE_URL: 'also not a url',
+				DRAWTHIS_LOCAL_REFERENCES_ENABLED: 'true'
 			}).references
 		).toEqual({
 			pexels: undefined,
@@ -91,7 +87,15 @@ describe('parseServerConfig', () => {
 		});
 	});
 
-	it('allows local references to be disabled when another provider is enabled', () => {
+	it('enables local references only when explicitly enabled', () => {
+		expect(parseServerConfig({ DRAWTHIS_LOCAL_REFERENCES_ENABLED: 'true' }).references).toEqual({
+			pexels: undefined,
+			openverse: undefined,
+			local: { enabled: true }
+		});
+	});
+
+	it('allows local references to stay disabled when another provider is enabled', () => {
 		expect(
 			parseServerConfig({
 				DRAWTHIS_OPENVERSE_ENABLED: 'true',

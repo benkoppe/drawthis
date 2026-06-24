@@ -1,3 +1,4 @@
+import { openDB, type DBSchema, type IDBPDatabase } from 'idb';
 import type { DrawingReference } from './types';
 
 export const referenceTimelineSessionStorageKey = 'drawthis:reference-timeline';
@@ -9,6 +10,7 @@ const referenceHistoryDatabaseVersion = 1;
 const referenceHistoryEntryStoreName = 'referenceHistoryEntries';
 const referenceHistoryMetaStoreName = 'referenceHistoryMeta';
 const referenceHistorySeenAtIndexName = 'seenAt';
+const referenceHistoryReferenceIdIndexName = 'referenceId';
 const lastViewedEntryMetaKey = 'lastViewedEntryId';
 
 export interface ReferenceTimelineEntry {
@@ -28,6 +30,21 @@ export interface ReferenceTabTimelineState {
 interface ReferenceHistoryMetaRecord {
 	key: string;
 	value: string;
+}
+
+interface ReferenceHistoryDatabase extends DBSchema {
+	[referenceHistoryEntryStoreName]: {
+		key: string;
+		value: ReferenceTimelineEntry;
+		indexes: {
+			[referenceHistorySeenAtIndexName]: string;
+			[referenceHistoryReferenceIdIndexName]: string;
+		};
+	};
+	[referenceHistoryMetaStoreName]: {
+		key: string;
+		value: ReferenceHistoryMetaRecord;
+	};
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {
@@ -165,65 +182,40 @@ export function serializeReferenceTabTimelineState(state: ReferenceTabTimelineSt
 	return JSON.stringify(serializedState);
 }
 
-function requestToPromise<T>(request: IDBRequest<T>): Promise<T> {
-	return new Promise((resolve, reject) => {
-		request.onsuccess = () => resolve(request.result);
-		request.onerror = () => reject(request.error ?? new Error('IndexedDB request failed'));
-	});
+function createLastViewedEntryRecord(entryId: string): ReferenceHistoryMetaRecord {
+	return { key: lastViewedEntryMetaKey, value: entryId };
 }
 
-function transactionDone(transaction: IDBTransaction): Promise<void> {
-	return new Promise((resolve, reject) => {
-		transaction.oncomplete = () => resolve();
-		transaction.onabort = () =>
-			reject(transaction.error ?? new Error('IndexedDB transaction aborted'));
-		transaction.onerror = () =>
-			reject(transaction.error ?? new Error('IndexedDB transaction failed'));
-	});
-}
-
-function openReferenceHistoryDatabase(): Promise<IDBDatabase | undefined> {
-	const indexedDb = globalThis.indexedDB;
-
-	if (indexedDb === undefined) {
-		return Promise.resolve(undefined);
+async function openReferenceHistoryDatabase(): Promise<
+	IDBPDatabase<ReferenceHistoryDatabase> | undefined
+> {
+	if (globalThis.indexedDB === undefined) {
+		return undefined;
 	}
 
-	return new Promise((resolve, reject) => {
-		const request = indexedDb.open(referenceHistoryDatabaseName, referenceHistoryDatabaseVersion);
+	return await openDB<ReferenceHistoryDatabase>(
+		referenceHistoryDatabaseName,
+		referenceHistoryDatabaseVersion,
+		{
+			upgrade(database) {
+				if (!database.objectStoreNames.contains(referenceHistoryEntryStoreName)) {
+					const entryStore = database.createObjectStore(referenceHistoryEntryStoreName, {
+						keyPath: 'id'
+					});
+					entryStore.createIndex(referenceHistorySeenAtIndexName, 'seenAt');
+					entryStore.createIndex(referenceHistoryReferenceIdIndexName, 'referenceId');
+				}
 
-		request.onupgradeneeded = () => {
-			const database = request.result;
-
-			if (!database.objectStoreNames.contains(referenceHistoryEntryStoreName)) {
-				const entryStore = database.createObjectStore(referenceHistoryEntryStoreName, {
-					keyPath: 'id'
-				});
-				entryStore.createIndex(referenceHistorySeenAtIndexName, 'seenAt');
-				entryStore.createIndex('referenceId', 'referenceId');
+				if (!database.objectStoreNames.contains(referenceHistoryMetaStoreName)) {
+					database.createObjectStore(referenceHistoryMetaStoreName, { keyPath: 'key' });
+				}
 			}
-
-			if (!database.objectStoreNames.contains(referenceHistoryMetaStoreName)) {
-				database.createObjectStore(referenceHistoryMetaStoreName, { keyPath: 'key' });
-			}
-		};
-
-		request.onsuccess = () => resolve(request.result);
-		request.onerror = () => reject(request.error ?? new Error('Could not open reference history'));
-	});
-}
-
-function getObjectStore(
-	database: IDBDatabase,
-	storeName: string,
-	mode: IDBTransactionMode
-): { transaction: IDBTransaction; store: IDBObjectStore } {
-	const transaction = database.transaction(storeName, mode);
-	return { transaction, store: transaction.objectStore(storeName) };
+		}
+	);
 }
 
 async function withReferenceHistoryDatabase<T>(
-	callback: (database: IDBDatabase) => Promise<T>
+	callback: (database: IDBPDatabase<ReferenceHistoryDatabase>) => Promise<T>
 ): Promise<T | undefined> {
 	const database = await openReferenceHistoryDatabase();
 
@@ -238,37 +230,25 @@ async function withReferenceHistoryDatabase<T>(
 	}
 }
 
-async function trimReferenceHistoryEntries(database: IDBDatabase): Promise<void> {
+async function trimReferenceHistoryEntries(
+	database: IDBPDatabase<ReferenceHistoryDatabase>
+): Promise<void> {
 	const transaction = database.transaction(referenceHistoryEntryStoreName, 'readwrite');
-	const transactionCompleted = transactionDone(transaction);
-	const store = transaction.objectStore(referenceHistoryEntryStoreName);
-	const seenAtIndex = store.index(referenceHistorySeenAtIndexName);
+	const seenAtIndex = transaction.store.index(referenceHistorySeenAtIndexName);
 	let retainedCount = 0;
+	let cursor = await seenAtIndex.openCursor(null, 'prev');
 
-	await new Promise<void>((resolve, reject) => {
-		const request = seenAtIndex.openCursor(null, 'prev');
+	while (cursor !== null) {
+		retainedCount += 1;
 
-		request.onsuccess = () => {
-			const cursor = request.result;
+		if (retainedCount > maxReferenceHistoryEntries) {
+			await cursor.delete();
+		}
 
-			if (cursor === null) {
-				resolve();
-				return;
-			}
+		cursor = await cursor.continue();
+	}
 
-			retainedCount += 1;
-
-			if (retainedCount > maxReferenceHistoryEntries) {
-				cursor.delete();
-			}
-
-			cursor.continue();
-		};
-
-		request.onerror = () => reject(request.error ?? new Error('Could not read reference history'));
-	});
-
-	await transactionCompleted;
+	await transaction.done;
 }
 
 export async function appendReferenceHistoryEntry(entry: ReferenceTimelineEntry): Promise<void> {
@@ -277,25 +257,21 @@ export async function appendReferenceHistoryEntry(entry: ReferenceTimelineEntry)
 			[referenceHistoryEntryStoreName, referenceHistoryMetaStoreName],
 			'readwrite'
 		);
-		transaction.objectStore(referenceHistoryEntryStoreName).put(entry);
-		transaction.objectStore(referenceHistoryMetaStoreName).put({
-			key: lastViewedEntryMetaKey,
-			value: entry.id
-		} satisfies ReferenceHistoryMetaRecord);
-		await transactionDone(transaction);
+
+		await Promise.all([
+			transaction.objectStore(referenceHistoryEntryStoreName).put(entry),
+			transaction
+				.objectStore(referenceHistoryMetaStoreName)
+				.put(createLastViewedEntryRecord(entry.id))
+		]);
+		await transaction.done;
 		await trimReferenceHistoryEntries(database);
 	});
 }
 
 export async function setLastViewedReferenceHistoryEntryId(entryId: string): Promise<void> {
 	await withReferenceHistoryDatabase(async (database) => {
-		const { transaction, store } = getObjectStore(
-			database,
-			referenceHistoryMetaStoreName,
-			'readwrite'
-		);
-		store.put({ key: lastViewedEntryMetaKey, value: entryId } satisfies ReferenceHistoryMetaRecord);
-		await transactionDone(transaction);
+		await database.put(referenceHistoryMetaStoreName, createLastViewedEntryRecord(entryId));
 	});
 }
 
@@ -304,29 +280,16 @@ export async function getReferenceHistoryEntriesByIds(
 ): Promise<Map<string, ReferenceTimelineEntry>> {
 	return (
 		(await withReferenceHistoryDatabase(async (database) => {
-			const { transaction, store } = getObjectStore(
-				database,
-				referenceHistoryEntryStoreName,
-				'readonly'
+			const entries = await Promise.all(
+				entryIds.map(async (entryId) => ({
+					entryId,
+					entry: await database.get(referenceHistoryEntryStoreName, entryId)
+				}))
 			);
-			const transactionCompleted = transactionDone(transaction);
-			const entryRequests = entryIds.map((entryId) => ({
-				entryId,
-				request: requestToPromise<ReferenceTimelineEntry | undefined>(store.get(entryId))
-			}));
-			const entriesById = new Map<string, ReferenceTimelineEntry>();
 
-			for (const { entryId, request } of entryRequests) {
-				const entry = await request;
-
-				if (entry !== undefined) {
-					entriesById.set(entryId, entry);
-				}
-			}
-
-			await transactionCompleted;
-
-			return entriesById;
+			return new Map(
+				entries.flatMap(({ entryId, entry }) => (entry === undefined ? [] : [[entryId, entry]]))
+			);
 		})) ?? new Map()
 	);
 }
@@ -336,36 +299,18 @@ export async function getRecentReferenceHistoryEntries(
 ): Promise<ReferenceTimelineEntry[]> {
 	return (
 		(await withReferenceHistoryDatabase(async (database) => {
-			const { transaction, store } = getObjectStore(
-				database,
-				referenceHistoryEntryStoreName,
-				'readonly'
-			);
-			const transactionCompleted = transactionDone(transaction);
-			const index = store.index(referenceHistorySeenAtIndexName);
+			const transaction = database.transaction(referenceHistoryEntryStoreName, 'readonly');
+			const index = transaction.store.index(referenceHistorySeenAtIndexName);
 			const entries: ReferenceTimelineEntry[] = [];
 			const clampedLimit = Math.max(0, Math.min(limit, maxReferenceTabTimelineEntries));
+			let cursor = await index.openCursor(null, 'prev');
 
-			await new Promise<void>((resolve, reject) => {
-				const request = index.openCursor(null, 'prev');
+			while (cursor !== null && entries.length < clampedLimit) {
+				entries.push(cursor.value);
+				cursor = await cursor.continue();
+			}
 
-				request.onsuccess = () => {
-					const cursor = request.result;
-
-					if (cursor === null || entries.length >= clampedLimit) {
-						resolve();
-						return;
-					}
-
-					entries.push(cursor.value as ReferenceTimelineEntry);
-					cursor.continue();
-				};
-
-				request.onerror = () =>
-					reject(request.error ?? new Error('Could not read reference history'));
-			});
-
-			await transactionCompleted;
+			await transaction.done;
 
 			return entries.reverse();
 		})) ?? []
@@ -376,24 +321,10 @@ export async function getLastViewedReferenceHistoryEntry(): Promise<
 	ReferenceTimelineEntry | undefined
 > {
 	return await withReferenceHistoryDatabase(async (database) => {
-		const metaTransaction = database.transaction(referenceHistoryMetaStoreName, 'readonly');
-		const metaTransactionCompleted = transactionDone(metaTransaction);
-		const metaRecord = await requestToPromise<ReferenceHistoryMetaRecord | undefined>(
-			metaTransaction.objectStore(referenceHistoryMetaStoreName).get(lastViewedEntryMetaKey)
-		);
-		await metaTransactionCompleted;
+		const metaRecord = await database.get(referenceHistoryMetaStoreName, lastViewedEntryMetaKey);
 
-		if (metaRecord === undefined) {
-			return undefined;
-		}
-
-		const entryTransaction = database.transaction(referenceHistoryEntryStoreName, 'readonly');
-		const entryTransactionCompleted = transactionDone(entryTransaction);
-		const entry = await requestToPromise<ReferenceTimelineEntry | undefined>(
-			entryTransaction.objectStore(referenceHistoryEntryStoreName).get(metaRecord.value)
-		);
-		await entryTransactionCompleted;
-
-		return entry;
+		return metaRecord === undefined
+			? undefined
+			: await database.get(referenceHistoryEntryStoreName, metaRecord.value);
 	});
 }

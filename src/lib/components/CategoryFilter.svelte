@@ -93,6 +93,19 @@
 		aria-expanded={isOpen}
 		onclick={toggleOpen}
 	>
+		<svg
+			class="size-3.5 shrink-0 text-gray-400"
+			viewBox="0 0 24 24"
+			fill="none"
+			stroke="currentColor"
+			stroke-width="1.75"
+			stroke-linecap="round"
+			stroke-linejoin="round"
+			aria-hidden="true"
+		>
+			<path d="M3 12V5a2 2 0 0 1 2-2h7l9 9-9 9-9-9Z" />
+			<circle cx="8" cy="8" r="1.5" fill="currentColor" stroke="none" />
+		</svg>
 		{summaryLabel}
 		<svg
 			class="size-3.5 text-gray-400 transition-transform {isOpen ? 'rotate-180' : ''}"

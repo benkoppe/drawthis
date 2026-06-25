@@ -493,7 +493,12 @@
 	class="mx-auto grid h-dvh w-full max-w-[1200px] grid-cols-1 grid-rows-[auto_minmax(0,1fr)] gap-3 p-3 sm:p-4"
 >
 	<header class="flex min-w-0 items-center justify-between gap-3">
-		<p class="m-0 truncate text-sm font-bold tracking-tight text-gray-700">✏️ DrawThis</p>
+		<p class="m-0 flex items-baseline gap-1.5 truncate text-lg tracking-tight text-gray-900">
+			<span aria-hidden="true">✏️</span>
+			<span>
+				<span class="font-semibold">Draw</span><span class="font-serif text-xl italic">This</span>
+			</span>
+		</p>
 		<CategoryFilter bind:enabled={enabledCategories} />
 	</header>
 
@@ -512,9 +517,22 @@
 				<div class="flex items-center justify-between gap-3 max-sm:flex-col max-sm:items-stretch">
 					<h1
 						id="reference-heading"
-						class="m-0 min-w-0 truncate text-lg leading-tight font-semibold"
+						class="m-0 flex min-w-0 items-center gap-1 text-lg leading-tight font-semibold"
 					>
-						{currentCategoryLabel}
+						<svg
+							class="size-5 shrink-0 text-gray-400"
+							viewBox="0 0 24 24"
+							fill="none"
+							stroke="currentColor"
+							stroke-width="1.75"
+							stroke-linecap="round"
+							stroke-linejoin="round"
+							aria-hidden="true"
+						>
+							<path d="M3 12V5a2 2 0 0 1 2-2h7l9 9-9 9-9-9Z" />
+							<circle cx="8" cy="8" r="1.5" fill="currentColor" stroke="none" />
+						</svg>
+						<span class="truncate">{currentCategoryLabel}</span>
 					</h1>
 
 					<div class="flex shrink-0 items-center gap-2 max-sm:grid max-sm:grid-cols-2">

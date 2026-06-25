@@ -26,3 +26,6 @@ test-results
 
 # Nix
 .direnv
+
+# AI
+.claude/settings.local.json

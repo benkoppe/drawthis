@@ -20,6 +20,7 @@ function makeReference(id: string, category: ReferenceCategory = 'still-life'): 
 		},
 		attribution: {
 			label: 'Test provider',
+			sourceName: 'Test provider',
 			sourceUrl: `https://example.com/${id}`
 		}
 	};

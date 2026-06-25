@@ -18,6 +18,7 @@ function makeReference(id: string, category: ReferenceCategory): DrawingReferenc
 		},
 		attribution: {
 			label: 'Test provider',
+			sourceName: 'Test provider',
 			sourceUrl: `https://example.com/${id}`
 		}
 	};

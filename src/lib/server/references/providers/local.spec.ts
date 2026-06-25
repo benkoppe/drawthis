@@ -21,6 +21,7 @@ describe('localReferenceProvider', () => {
 			},
 			attribution: {
 				label: 'DrawThis local mock reference',
+				sourceName: 'DrawThis',
 				sourceUrl: '/references/room-interior.svg'
 			}
 		});

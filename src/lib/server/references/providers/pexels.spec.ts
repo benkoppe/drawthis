@@ -101,6 +101,7 @@ describe('createPexelsReferenceProvider', () => {
 					},
 					attribution: {
 						label: 'Photo by Joey Farina on Pexels',
+						sourceName: 'Pexels',
 						sourceUrl: 'https://www.pexels.com/photo/brown-rocks-during-golden-hour-2014422/',
 						creatorName: 'Joey Farina',
 						creatorUrl: 'https://www.pexels.com/@joey',

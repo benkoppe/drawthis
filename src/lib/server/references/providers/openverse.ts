@@ -181,6 +181,7 @@ function toDrawingReference(image: OpenverseImage, category: ReferenceCategory):
 	};
 	const attribution: DrawingReference['attribution'] = {
 		label: image.attribution ?? makeFallbackAttributionLabel(image, licenseName),
+		sourceName: openverseProviderName,
 		sourceUrl: image.foreignLandingUrl
 	};
 

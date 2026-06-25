@@ -68,10 +68,49 @@
 		isReady &&
 			(!isAtTimelineTail || referenceQueue.length > 0 || (!isLoadingReference && !isRefillingQueue))
 	);
+	let loadedImageUrl = $state('');
+	let isImageLoaded = $derived(currentImageUrl !== '' && loadedImageUrl === currentImageUrl);
+	let currentSourceCredit = $derived(buildSourceCredit(currentReference));
 
 	onMount(() => {
 		void initializePracticeState();
 	});
+
+	function buildSourceCredit(reference: DrawingReference | undefined): string {
+		if (reference === undefined) {
+			return '';
+		}
+
+		const { creatorName, sourceName } = reference.attribution;
+
+		return creatorName ? `by ${creatorName} on ${sourceName}` : `on ${sourceName}`;
+	}
+
+	function handleWindowKeydown(event: KeyboardEvent): void {
+		if (event.defaultPrevented || event.metaKey || event.ctrlKey || event.altKey) {
+			return;
+		}
+
+		const target = event.target;
+
+		if (
+			target instanceof HTMLElement &&
+			(target.isContentEditable ||
+				target.tagName === 'INPUT' ||
+				target.tagName === 'TEXTAREA' ||
+				target.tagName === 'SELECT')
+		) {
+			return;
+		}
+
+		if (event.key === 'ArrowLeft' && canGoBack) {
+			event.preventDefault();
+			showPreviousReference();
+		} else if (event.key === 'ArrowRight' && canGoNext) {
+			event.preventDefault();
+			void showNextReference();
+		}
+	}
 
 	async function initializePracticeState(): Promise<void> {
 		avoidanceReferenceContexts = mergeRecentReferenceContexts(
@@ -443,28 +482,39 @@
 	<meta name="description" content="A fast, low-friction drawing reference practice tool." />
 </svelte:head>
 
-<main class="practice-page">
-	<header class="app-header">
-		<p class="app-label">DrawThis</p>
+<svelte:window onkeydown={handleWindowKeydown} />
+
+<main
+	class="mx-auto grid h-dvh w-full max-w-[1200px] grid-cols-1 grid-rows-[auto_minmax(0,1fr)] gap-3 p-3 sm:p-4"
+>
+	<header class="min-w-0">
+		<p class="m-0 text-sm font-bold tracking-tight text-gray-700">✏️ DrawThis</p>
 	</header>
 
-	<section class="practice-loop" aria-labelledby="reference-heading">
+	<section
+		class="grid min-h-0 w-full min-w-0 grid-cols-1 grid-rows-[auto_minmax(0,1fr)] overflow-hidden rounded-xl border border-gray-300 bg-white shadow-sm"
+		aria-labelledby="reference-heading"
+	>
 		{#if !isReady}
-			<div class="empty-state" aria-live="polite">
-				<h1 id="reference-heading">Loading references…</h1>
+			<div class="p-4" aria-live="polite">
+				<h1 id="reference-heading" class="m-0 text-base leading-tight text-gray-500">
+					Loading references…
+				</h1>
 			</div>
 		{:else if currentReference}
-			<div class="reference-toolbar" aria-live="polite">
-				<div class="reference-controls">
-					<div class="reference-meta">
-						<h1 id="reference-heading">{currentReference.title}</h1>
-						<p>{currentCategoryLabel}</p>
-					</div>
+			<div class="grid min-w-0 gap-2 border-b border-gray-200 px-4 py-3" aria-live="polite">
+				<div class="flex items-center justify-between gap-3 max-sm:flex-col max-sm:items-stretch">
+					<h1
+						id="reference-heading"
+						class="m-0 min-w-0 truncate text-lg leading-tight font-semibold"
+					>
+						{currentCategoryLabel}
+					</h1>
 
-					<div class="reference-buttons">
+					<div class="flex shrink-0 items-center gap-2 max-sm:grid max-sm:grid-cols-2">
 						<button
 							type="button"
-							class="secondary-button"
+							class="min-h-11 cursor-pointer rounded-lg border border-gray-900 bg-white px-4 font-bold text-gray-900 transition-colors hover:bg-gray-100 focus-visible:outline-3 focus-visible:outline-offset-3 focus-visible:outline-blue-600 disabled:cursor-not-allowed disabled:opacity-60 max-sm:w-full"
 							disabled={!canGoBack}
 							onclick={showPreviousReference}
 						>
@@ -473,7 +523,8 @@
 
 						<button
 							type="button"
-							class:loading={isLoadingReference && isAtTimelineTail}
+							class="min-h-11 cursor-pointer rounded-lg border border-gray-900 bg-gray-900 px-4 font-bold text-white transition-colors hover:bg-gray-700 focus-visible:outline-3 focus-visible:outline-offset-3 focus-visible:outline-blue-600 disabled:cursor-not-allowed disabled:opacity-60 max-sm:w-full"
+							class:cursor-wait={isLoadingReference && isAtTimelineTail}
 							disabled={!canGoNext}
 							onclick={showNextReference}
 						>
@@ -483,227 +534,58 @@
 				</div>
 
 				{#if errorMessage}
-					<p class="reference-error">{errorMessage}</p>
+					<p class="m-0 text-sm text-red-800">{errorMessage}</p>
 				{/if}
 			</div>
 
-			<figure>
-				<img src={currentImageUrl} alt={currentReference.image.alt} />
+			<figure class="m-0 grid min-h-0 min-w-0 grid-cols-1 grid-rows-[minmax(0,1fr)_auto]">
+				<div class="relative min-h-0 bg-[#f7f7f4]">
+					<img
+						class="h-full w-full object-contain transition-opacity duration-200"
+						class:opacity-0={!isImageLoaded}
+						src={currentImageUrl}
+						alt={currentReference.image.alt}
+						onload={() => (loadedImageUrl = currentImageUrl)}
+						onerror={() => (loadedImageUrl = currentImageUrl)}
+					/>
 
-				<figcaption>
-					<span>{currentReference.attribution.label}</span>
-					<!-- eslint-disable-next-line svelte/no-navigation-without-resolve -->
-					<a href={currentSourceUrl}>Open source image</a>
+					{#if !isImageLoaded}
+						<div
+							class="pointer-events-none absolute inset-0 flex items-center justify-center"
+							aria-hidden="true"
+						>
+							<span
+								class="h-7 w-7 animate-spin rounded-full border-2 border-gray-300 border-t-gray-600"
+							></span>
+						</div>
+					{/if}
+				</div>
+
+				<figcaption
+					class="flex items-baseline gap-4 border-t border-gray-200 px-4 py-3 text-sm text-gray-600"
+				>
+					<span
+						class="min-w-0 flex-1 truncate text-gray-900"
+						data-testid="reference-description"
+						title={currentReference.title}>{currentReference.title}</span
+					>
+					<!-- eslint-disable svelte/no-navigation-without-resolve -->
+					<a
+						class="shrink-0 whitespace-nowrap text-gray-600 underline underline-offset-2 hover:text-gray-900 focus-visible:outline-3 focus-visible:outline-offset-3 focus-visible:outline-blue-600"
+						href={currentSourceUrl}
+						target="_blank"
+						rel="noopener noreferrer"
+					>
+						{currentSourceCredit}
+					</a>
+					<!-- eslint-enable svelte/no-navigation-without-resolve -->
 				</figcaption>
 			</figure>
 		{:else}
-			<div class="empty-state" aria-live="polite">
-				<h1 id="reference-heading">No references available</h1>
-				<p>Try again later.</p>
+			<div class="p-4" aria-live="polite">
+				<h1 id="reference-heading" class="m-0 text-base leading-tight">No references available</h1>
+				<p class="mt-1 text-sm text-gray-600">Try again later.</p>
 			</div>
 		{/if}
 	</section>
 </main>
-
-<style>
-	:global(body) {
-		margin: 0;
-		background: #f7f7f4;
-		color: #111827;
-		font-family:
-			system-ui,
-			-apple-system,
-			BlinkMacSystemFont,
-			'Segoe UI',
-			sans-serif;
-	}
-
-	:global(*) {
-		box-sizing: border-box;
-	}
-
-	.practice-page {
-		display: grid;
-		grid-template-rows: auto minmax(0, 1fr);
-		gap: 8px;
-		width: min(100%, 1200px);
-		height: 100vh;
-		margin: 0 auto;
-		padding: 12px;
-	}
-
-	.app-header {
-		min-width: 0;
-	}
-
-	.app-label,
-	.reference-meta p,
-	figcaption {
-		color: #4b5563;
-	}
-
-	.app-label {
-		margin: 0;
-		font-size: 0.875rem;
-		font-weight: 700;
-	}
-
-	h1,
-	p {
-		margin-top: 0;
-	}
-
-	h1 {
-		margin-bottom: 0;
-		font-size: 1rem;
-		line-height: 1.2;
-	}
-
-	.practice-loop {
-		display: grid;
-		grid-template-rows: auto minmax(0, 1fr);
-		width: 100%;
-		min-height: 0;
-		border: 1px solid #d1d5db;
-		background: #ffffff;
-	}
-
-	.reference-toolbar {
-		display: grid;
-		gap: 6px;
-		padding: 8px 12px 10px;
-		border-bottom: 1px solid #d1d5db;
-	}
-
-	.reference-controls {
-		display: flex;
-		gap: 12px;
-		align-items: center;
-		justify-content: space-between;
-	}
-
-	.reference-buttons {
-		display: flex;
-		gap: 8px;
-		align-items: center;
-		flex-shrink: 0;
-	}
-
-	.reference-meta {
-		display: flex;
-		gap: 8px;
-		align-items: baseline;
-		min-width: 0;
-	}
-
-	.reference-meta p,
-	.reference-error {
-		margin-bottom: 0;
-		font-size: 0.875rem;
-	}
-
-	.reference-error {
-		color: #991b1b;
-	}
-
-	button {
-		min-height: 44px;
-		padding: 0 16px;
-		border: 1px solid #111827;
-		border-radius: 0;
-		background: #111827;
-		color: #ffffff;
-		font: inherit;
-		font-weight: 700;
-		cursor: pointer;
-	}
-
-	button:hover {
-		background: #374151;
-	}
-
-	.secondary-button {
-		background: #ffffff;
-		color: #111827;
-	}
-
-	.secondary-button:hover {
-		background: #f3f4f6;
-	}
-
-	button:disabled {
-		cursor: not-allowed;
-		opacity: 0.65;
-	}
-
-	button.loading:disabled {
-		cursor: wait;
-	}
-
-	button:focus-visible,
-	a:focus-visible {
-		outline: 3px solid #2563eb;
-		outline-offset: 3px;
-	}
-
-	figure {
-		display: grid;
-		grid-template-rows: minmax(0, 1fr) auto;
-		min-height: 0;
-		margin: 0;
-	}
-
-	img {
-		display: block;
-		width: 100%;
-		height: 100%;
-		min-height: 0;
-		object-fit: contain;
-		background: #f7f7f4;
-	}
-
-	figcaption {
-		display: flex;
-		gap: 12px;
-		align-items: center;
-		justify-content: space-between;
-		padding: 8px 12px;
-		border-top: 1px solid #d1d5db;
-		font-size: 0.8125rem;
-	}
-
-	a {
-		color: #111827;
-		text-underline-offset: 0.2em;
-	}
-
-	.empty-state {
-		padding: 12px;
-	}
-
-	@media (max-width: 640px) {
-		.practice-page {
-			padding: 8px;
-		}
-
-		.reference-controls,
-		figcaption {
-			align-items: stretch;
-			flex-direction: column;
-		}
-
-		.reference-meta {
-			flex-wrap: wrap;
-		}
-
-		.reference-buttons {
-			display: grid;
-			grid-template-columns: 1fr 1fr;
-			width: 100%;
-		}
-
-		button {
-			width: 100%;
-		}
-	}
-</style>

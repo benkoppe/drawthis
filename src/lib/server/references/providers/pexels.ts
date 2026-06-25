@@ -200,6 +200,7 @@ function toDrawingReference(photo: PexelsPhoto, category: ReferenceCategory): Dr
 	};
 	const attribution: DrawingReference['attribution'] = {
 		label: makeAttributionLabel(photo),
+		sourceName: pexelsProviderName,
 		sourceUrl: photo.url,
 		licenseName: pexelsLicenseName,
 		licenseUrl: pexelsLicenseUrl

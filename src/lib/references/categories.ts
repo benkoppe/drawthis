@@ -11,8 +11,8 @@ export type ReferenceCategory = (typeof referenceCategories)[number];
 export const referenceCategoryLabels = {
 	interior: 'Interior',
 	street: 'Street',
-	'figure-study': 'Figure study',
-	'still-life': 'Still life',
+	'figure-study': 'Figure Study',
+	'still-life': 'Still Life',
 	plant: 'Plant'
 } satisfies Record<ReferenceCategory, string>;
 

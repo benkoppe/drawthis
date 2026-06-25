@@ -7,6 +7,7 @@ import type { ProviderSearchRequest, ProviderSearchResult, ReferenceProvider } f
 
 const localProviderId = 'local';
 const localProviderName = 'DrawThis local references';
+const localSourceName = 'DrawThis';
 const localMockCredit = 'DrawThis local mock reference';
 
 interface LocalReferenceCatalogItem {
@@ -71,6 +72,7 @@ function toDrawingReference(item: LocalReferenceCatalogItem): DrawingReference {
 		},
 		attribution: {
 			label: localMockCredit,
+			sourceName: localSourceName,
 			sourceUrl: item.imageUrl
 		}
 	};

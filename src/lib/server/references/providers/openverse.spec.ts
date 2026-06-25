@@ -88,6 +88,7 @@ describe('createOpenverseReferenceProvider', () => {
 					attribution: {
 						label:
 							'"Cluttered desk by a window" by Example Creator is licensed under CC BY-SA 4.0.',
+						sourceName: 'Openverse',
 						sourceUrl: 'https://example.com/source/image',
 						creatorName: 'Example Creator',
 						creatorUrl: 'https://example.com/creator',

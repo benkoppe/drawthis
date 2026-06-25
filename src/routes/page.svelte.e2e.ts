@@ -20,11 +20,11 @@ async function getInitialReferenceTitleForSeed(browser: Browser, seed: string): 
 		const page = await context.newPage();
 		await page.goto('/');
 
-		const referenceHeading = page.getByRole('heading', { level: 1 });
+		const referenceDescription = page.getByTestId('reference-description');
 		await expect(page.getByRole('img')).toBeVisible();
-		await expect(referenceHeading).toBeVisible();
+		await expect(referenceDescription).toBeVisible();
 
-		return (await referenceHeading.textContent()) ?? '';
+		return (await referenceDescription.textContent()) ?? '';
 	} finally {
 		await context.close();
 	}
@@ -35,40 +35,40 @@ test('advances through drawing references and restores per-tab reference navigat
 }) => {
 	await page.goto('/');
 
-	const referenceHeading = page.getByRole('heading', { level: 1 });
+	const referenceDescription = page.getByTestId('reference-description');
 	const referenceImage = page.getByRole('img');
 	const backButton = page.getByRole('button', { name: 'Back' });
 	const nextButton = page.getByRole('button', { name: 'Next' });
 
 	await expect(page).toHaveTitle('DrawThis');
-	await expect(referenceHeading).toBeVisible();
+	await expect(referenceDescription).toBeVisible();
 	await expect(referenceImage).toBeVisible();
 	await expect(backButton).toBeDisabled();
 	await expect(nextButton).toBeEnabled();
 
-	const firstReferenceTitle = (await referenceHeading.textContent()) ?? '';
+	const firstReferenceTitle = (await referenceDescription.textContent()) ?? '';
 
 	await nextButton.click();
 
-	await expect(referenceHeading).toBeVisible();
-	await expect(referenceHeading).not.toHaveText(firstReferenceTitle);
+	await expect(referenceDescription).toBeVisible();
+	await expect(referenceDescription).not.toHaveText(firstReferenceTitle);
 	await expect(referenceImage).toBeVisible();
 	await expect(backButton).toBeEnabled();
 
-	const secondReferenceTitle = (await referenceHeading.textContent()) ?? '';
+	const secondReferenceTitle = (await referenceDescription.textContent()) ?? '';
 
 	await backButton.click();
 
-	await expect(referenceHeading).toHaveText(firstReferenceTitle);
+	await expect(referenceDescription).toHaveText(firstReferenceTitle);
 	await expect(backButton).toBeDisabled();
 
 	await nextButton.click();
 
-	await expect(referenceHeading).toHaveText(secondReferenceTitle);
+	await expect(referenceDescription).toHaveText(secondReferenceTitle);
 
 	await page.reload();
 
-	await expect(referenceHeading).toHaveText(secondReferenceTitle);
+	await expect(referenceDescription).toHaveText(secondReferenceTitle);
 	await expect(referenceImage).toBeVisible();
 	await expect(backButton).toBeEnabled();
 });

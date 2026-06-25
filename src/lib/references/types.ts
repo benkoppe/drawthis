@@ -21,6 +21,7 @@ export interface DrawingReference {
 	};
 	attribution: {
 		label: string;
+		sourceName: string;
 		sourceUrl: string;
 		creatorName?: string;
 		creatorUrl?: string;

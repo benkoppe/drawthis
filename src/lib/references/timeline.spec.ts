@@ -28,6 +28,7 @@ function makeReference(id: string): DrawingReference {
 		},
 		attribution: {
 			label: 'Example Creator',
+			sourceName: 'Example',
 			sourceUrl: `https://example.com/${id}`,
 			creatorName: 'Example Creator',
 			creatorUrl: 'https://example.com/creator',

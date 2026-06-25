@@ -8,6 +8,12 @@
 		"binding": "ASSETS",
 		"directory": ".svelte-kit/cloudflare"
 	},
+	"vars": {
+		"DRAWTHIS_PEXELS_ENABLED": "true",
+		"DRAWTHIS_PEXELS_API_BASE_URL": "https://api.pexels.com/v1",
+		"DRAWTHIS_OPENVERSE_ENABLED": "false",
+		"DRAWTHIS_LOCAL_REFERENCES_ENABLED": "false"
+	},
 	"workers_dev": true,
 	"preview_urls": true,
 	"observability": {

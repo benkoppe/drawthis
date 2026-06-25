@@ -518,7 +518,7 @@
 				<div class="flex items-center justify-between gap-3 max-sm:flex-col max-sm:items-stretch">
 					<h1
 						id="reference-heading"
-						class="m-0 flex min-w-0 items-center gap-1 text-lg leading-tight font-semibold"
+						class="m-0 flex min-w-0 items-center gap-1.5 text-lg leading-tight font-semibold"
 					>
 						<svg
 							class="size-5 shrink-0 text-gray-400"

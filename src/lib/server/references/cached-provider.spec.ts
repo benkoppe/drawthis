@@ -71,6 +71,32 @@ describe('searchReferenceProvider', () => {
 		expect(second.references[0]?.id).toBe('test:cached');
 	});
 
+	it('does not share cached provider search metadata across categories', async () => {
+		const search = vi.fn((searchRequest: ProviderSearchRequest) => ({
+			references: [
+				makeReference(searchRequest.category ?? 'uncategorized', searchRequest.category)
+			],
+			cachePolicy: { metadataTtlSeconds: 60, canCacheImageBytes: false }
+		}));
+		const provider = makeProvider('category-cache-test-provider', search);
+		const cache = createMemoryReferenceSearchCache();
+
+		const interior = await searchReferenceProvider(
+			provider,
+			{ ...request, category: 'interior' },
+			cache
+		);
+		const street = await searchReferenceProvider(
+			provider,
+			{ ...request, category: 'street' },
+			cache
+		);
+
+		expect(search).toHaveBeenCalledTimes(2);
+		expect(interior.references[0]?.category).toBe('interior');
+		expect(street.references[0]?.category).toBe('street');
+	});
+
 	it('serves stale cached metadata when a refreshed provider search fails', async () => {
 		const cache = createMemoryReferenceSearchCache();
 		const provider = makeProvider('stale-test-provider', () => ({

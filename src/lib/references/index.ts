@@ -1,6 +1,9 @@
 export { requestReferenceFeed, type RequestReferenceFeedOptions } from './api';
 export {
+	areReferenceCategorySelectionsEqual,
+	getReferenceCategorySelectionKey,
 	isReferenceCategory,
+	normalizeReferenceCategories,
 	referenceCategories,
 	referenceCategoryLabels,
 	type ReferenceCategory

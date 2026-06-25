@@ -3,6 +3,7 @@ import type { ReferenceFeedRequest, ReferenceFeedResponse } from './types';
 export interface RequestReferenceFeedOptions {
 	fetch: typeof fetch;
 	basePath?: string;
+	signal?: AbortSignal;
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {
@@ -30,7 +31,8 @@ export async function requestReferenceFeed(
 	const response = await options.fetch(`${options.basePath ?? ''}/api/references`, {
 		method: 'POST',
 		headers: { accept: 'application/json', 'content-type': 'application/json' },
-		body: JSON.stringify(request)
+		body: JSON.stringify(request),
+		...(options.signal === undefined ? {} : { signal: options.signal })
 	});
 
 	if (!response.ok) {

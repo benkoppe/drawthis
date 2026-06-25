@@ -11,13 +11,13 @@ function expectBadRequest(callback: () => void, message: string): void {
 }
 
 describe('parseReferenceFeedRequest', () => {
-	it('parses enabled category preferences and removes duplicates', () => {
+	it('parses enabled category preferences into canonical order and removes duplicates', () => {
 		expect(
 			parseReferenceFeedRequest({
 				count: 2,
 				currentReferenceId: 'local:room-interior',
 				recentReferenceIds: ['a', 'b'],
-				preferences: { enabledCategories: ['street', 'street', 'plant'] }
+				preferences: { enabledCategories: ['plant', 'street', 'street'] }
 			})
 		).toEqual({
 			count: 2,

@@ -1,5 +1,6 @@
 import {
 	isReferenceCategory,
+	normalizeReferenceCategories,
 	referenceCategories,
 	type ReferenceCategory,
 	type ReferenceFeedRequest
@@ -70,10 +71,6 @@ function weightedShuffle<T>(items: readonly WeightedItem<T>[], random: () => num
 	return shuffled;
 }
 
-function uniqueCategories(categories: readonly ReferenceCategory[]): ReferenceCategory[] {
-	return [...new Set(categories)];
-}
-
 function getEnabledCategories(request: ReferenceFeedRequest): ReferenceCategory[] | undefined {
 	const enabledCategories = request.preferences?.enabledCategories;
 
@@ -91,7 +88,7 @@ function getEnabledCategories(request: ReferenceFeedRequest): ReferenceCategory[
 		}
 	}
 
-	return uniqueCategories(enabledCategories);
+	return normalizeReferenceCategories(enabledCategories);
 }
 
 function getRandomInitialCursorPage(

@@ -3,6 +3,7 @@
 	import {
 		appendReferenceHistoryEntry,
 		appendReferenceTimelineEntry,
+		areReferenceCategorySelectionsEqual,
 		createReferenceTimelineEntry,
 		createReferenceTimelineTabId,
 		getLastViewedReferenceHistoryEntry,
@@ -15,6 +16,7 @@
 		parseRecentReferenceContexts,
 		parseRecentReferenceIds,
 		parseReferenceTabTimelineState,
+		normalizeReferenceCategories,
 		referenceCategories,
 		referenceCategoryLabels,
 		referenceContextHistoryStorageKey,
@@ -26,6 +28,7 @@
 		serializeRecentReferenceContexts,
 		serializeRecentReferenceIds,
 		serializeReferenceTabTimelineState,
+		getReferenceCategorySelectionKey,
 		setLastViewedReferenceHistoryEntryId,
 		toReferenceFeedContextItem,
 		type DrawingReference,
@@ -57,6 +60,9 @@
 	let isLoadingReference = $state(false);
 	let isRefillingQueue = $state(false);
 	let errorMessage = $state<string | undefined>();
+	let referenceFeedRequestGeneration = 0;
+	let activeEnabledCategoryKey = getReferenceCategorySelectionKey(referenceCategories);
+	let activeQueueRefillAbortController: AbortController | undefined;
 	let currentImageUrl = $derived(
 		currentReference ? resolveReferenceUrl(currentReference.image.url) : ''
 	);
@@ -80,6 +86,27 @@
 
 	onMount(() => {
 		void initializePracticeState();
+	});
+
+	$effect(() => {
+		const normalizedEnabledCategories = normalizeReferenceCategories(enabledCategories);
+
+		if (normalizedEnabledCategories.length === 0) {
+			enabledCategories = [...referenceCategories];
+			return;
+		}
+
+		if (!areReferenceCategorySelectionsEqual(enabledCategories, normalizedEnabledCategories)) {
+			enabledCategories = normalizedEnabledCategories;
+			return;
+		}
+
+		const nextCategoryKey = getReferenceCategorySelectionKey(normalizedEnabledCategories);
+
+		if (nextCategoryKey !== activeEnabledCategoryKey) {
+			activeEnabledCategoryKey = nextCategoryKey;
+			handleEnabledCategoriesChanged(normalizedEnabledCategories);
+		}
 	});
 
 	function buildSourceCredit(reference: DrawingReference | undefined): string {
@@ -241,6 +268,44 @@
 		});
 	}
 
+	function isReferenceInEnabledCategories(
+		reference: DrawingReference,
+		categories: readonly ReferenceCategory[]
+	): boolean {
+		return categories.includes(reference.category);
+	}
+
+	function filterReferencesByEnabledCategories(
+		references: readonly DrawingReference[],
+		categories: readonly ReferenceCategory[]
+	): DrawingReference[] {
+		return references.filter((reference) => isReferenceInEnabledCategories(reference, categories));
+	}
+
+	function truncateForwardReferenceTimelineEntries(): void {
+		if (referenceTimelineCursorIndex < 0 || isAtTimelineTail) {
+			return;
+		}
+
+		referenceTimelineEntries = referenceTimelineEntries.slice(0, referenceTimelineCursorIndex + 1);
+		persistReferenceTimeline();
+	}
+
+	function handleEnabledCategoriesChanged(categories: readonly ReferenceCategory[]): void {
+		referenceFeedRequestGeneration += 1;
+		activeQueueRefillAbortController?.abort();
+		activeQueueRefillAbortController = undefined;
+		isRefillingQueue = false;
+		errorMessage = undefined;
+
+		truncateForwardReferenceTimelineEntries();
+		setReferenceQueue(filterReferencesByEnabledCategories(referenceQueue, categories));
+
+		if (isReady) {
+			void ensureReferenceQueueFilled({ force: true });
+		}
+	}
+
 	async function initializeReferenceTimeline(): Promise<void> {
 		const storedTimelineState = readStoredReferenceTabTimelineState();
 		activeTimelineTabId = storedTimelineState?.tabId ?? createReferenceTimelineTabId();
@@ -345,7 +410,12 @@
 	}
 
 	function setReferenceQueue(nextQueue: DrawingReference[]): void {
+		const queuedReferenceIds = new Set(nextQueue.map((reference) => reference.id));
+
 		referenceQueue = nextQueue;
+		preloadedReferenceIds = preloadedReferenceIds.filter((referenceId) =>
+			queuedReferenceIds.has(referenceId)
+		);
 		preloadQueuedImages();
 	}
 
@@ -377,13 +447,26 @@
 		}
 	}
 
-	async function ensureReferenceQueueFilled(): Promise<void> {
-		if (isRefillingQueue || referenceQueue.length > referenceQueueLowWatermark) {
+	async function ensureReferenceQueueFilled(options: { force?: boolean } = {}): Promise<void> {
+		if (isRefillingQueue) {
 			return;
 		}
 
-		isRefillingQueue = true;
+		if (!options.force && referenceQueue.length > referenceQueueLowWatermark) {
+			return;
+		}
+
+		if (referenceQueue.length >= referenceQueueTargetSize) {
+			return;
+		}
+
+		const requestGeneration = referenceFeedRequestGeneration;
+		const enabledCategoriesSnapshot = normalizeReferenceCategories(enabledCategories);
+		const abortController = new AbortController();
 		const currentReferenceId = currentReference?.id;
+
+		isRefillingQueue = true;
+		activeQueueRefillAbortController = abortController;
 
 		try {
 			const requestedCount = Math.max(referenceQueueTargetSize - referenceQueue.length, 1);
@@ -393,12 +476,24 @@
 					currentReferenceId,
 					recentReferenceIds: avoidanceReferenceIds,
 					recentReferences: avoidanceReferenceContexts,
-					precedingReferences: getPrecedingReferenceContexts()
+					precedingReferences: getPrecedingReferenceContexts(),
+					preferences: { enabledCategories: enabledCategoriesSnapshot }
 				},
-				{ fetch, basePath: base }
+				{ fetch, basePath: base, signal: abortController.signal }
 			);
+
+			if (
+				requestGeneration !== referenceFeedRequestGeneration ||
+				!areReferenceCategorySelectionsEqual(enabledCategoriesSnapshot, enabledCategories)
+			) {
+				return;
+			}
+
 			const queuedReferenceIds = new Set(referenceQueue.map((reference) => reference.id));
-			const newReferences = feed.references.filter(
+			const newReferences = filterReferencesByEnabledCategories(
+				feed.references,
+				enabledCategoriesSnapshot
+			).filter(
 				(reference) => !queuedReferenceIds.has(reference.id) && reference.id !== currentReferenceId
 			);
 
@@ -407,15 +502,25 @@
 				rememberAvoidanceReferences(newReferences);
 			}
 		} catch (cause) {
+			if (abortController.signal.aborted || requestGeneration !== referenceFeedRequestGeneration) {
+				return;
+			}
+
 			if (referenceQueue.length === 0) {
 				errorMessage = cause instanceof Error ? cause.message : 'Could not load more references.';
 			}
 		} finally {
-			isRefillingQueue = false;
+			if (activeQueueRefillAbortController === abortController) {
+				activeQueueRefillAbortController = undefined;
+				isRefillingQueue = false;
+			}
 		}
 	}
 
-	async function loadImmediateFallbackReference(): Promise<DrawingReference | undefined> {
+	async function loadImmediateFallbackReference(
+		requestGeneration: number,
+		enabledCategoriesSnapshot: readonly ReferenceCategory[]
+	): Promise<DrawingReference | undefined> {
 		const currentReferenceId = currentReference?.id;
 		const feed = await requestReferenceFeed(
 			{
@@ -423,12 +528,20 @@
 				currentReferenceId,
 				recentReferenceIds: avoidanceReferenceIds,
 				recentReferences: avoidanceReferenceContexts,
-				precedingReferences: getPrecedingReferenceContexts()
+				precedingReferences: getPrecedingReferenceContexts(),
+				preferences: { enabledCategories: enabledCategoriesSnapshot }
 			},
 			{ fetch, basePath: base }
 		);
 
-		return feed.references[0];
+		if (
+			requestGeneration !== referenceFeedRequestGeneration ||
+			!areReferenceCategorySelectionsEqual(enabledCategoriesSnapshot, enabledCategories)
+		) {
+			return undefined;
+		}
+
+		return filterReferencesByEnabledCategories(feed.references, enabledCategoriesSnapshot)[0];
 	}
 
 	function showPreviousReference(): void {
@@ -453,7 +566,16 @@
 		}
 
 		const previousReference = currentReference;
-		const [queuedReference, ...remainingQueue] = referenceQueue;
+		const enabledCategoriesSnapshot = normalizeReferenceCategories(enabledCategories);
+		const categorySafeQueue = filterReferencesByEnabledCategories(
+			referenceQueue,
+			enabledCategoriesSnapshot
+		);
+		const [queuedReference, ...remainingQueue] = categorySafeQueue;
+
+		if (categorySafeQueue.length !== referenceQueue.length) {
+			setReferenceQueue(categorySafeQueue);
+		}
 
 		if (queuedReference !== undefined) {
 			await appendDisplayedReferenceToTimeline(queuedReference);
@@ -464,11 +586,19 @@
 		}
 
 		isLoadingReference = true;
+		const requestGeneration = referenceFeedRequestGeneration;
 
 		try {
-			const nextReference = await loadImmediateFallbackReference();
+			const nextReference = await loadImmediateFallbackReference(
+				requestGeneration,
+				enabledCategoriesSnapshot
+			);
 
 			if (!nextReference) {
+				if (requestGeneration !== referenceFeedRequestGeneration) {
+					return;
+				}
+
 				throw new Error('No references are available right now.');
 			}
 

@@ -1,5 +1,6 @@
 <script lang="ts">
 	import {
+		normalizeReferenceCategories,
 		referenceCategories,
 		referenceCategoryLabels,
 		type ReferenceCategory
@@ -10,15 +11,18 @@
 	let isOpen = $state(false);
 	let wrapper = $state<HTMLElement>();
 	let triggerButton = $state<HTMLButtonElement>();
+	let allCategoriesCheckbox = $state<HTMLInputElement>();
 
-	let allSelected = $derived(enabled.length === referenceCategories.length);
-	let noneSelected = $derived(enabled.length === 0);
+	let normalizedEnabled = $derived(normalizeReferenceCategories(enabled));
+	let allSelected = $derived(normalizedEnabled.length === referenceCategories.length);
+	let noneSelected = $derived(normalizedEnabled.length === 0);
+	let selectedCategoryCount = $derived(normalizedEnabled.length);
 	let summaryLabel = $derived(
 		allSelected
 			? 'All categories'
 			: noneSelected
 				? 'No categories'
-				: `${enabled.length} of ${referenceCategories.length} categories`
+				: `${selectedCategoryCount} of ${referenceCategories.length} categories`
 	);
 
 	function open(): void {
@@ -37,20 +41,32 @@
 		}
 	}
 
+	$effect(() => {
+		if (allCategoriesCheckbox !== undefined) {
+			allCategoriesCheckbox.indeterminate = !allSelected && !noneSelected;
+		}
+	});
+
 	function isCategoryEnabled(category: ReferenceCategory): boolean {
-		return enabled.includes(category);
+		return normalizedEnabled.includes(category);
 	}
 
 	function setCategoryEnabled(category: ReferenceCategory, shouldEnable: boolean): void {
-		enabled = shouldEnable
-			? referenceCategories.filter(
-					(candidate) => candidate === category || enabled.includes(candidate)
-				)
-			: enabled.filter((candidate) => candidate !== category);
+		const nextEnabled = shouldEnable
+			? normalizeReferenceCategories([...normalizedEnabled, category])
+			: normalizedEnabled.filter((candidate) => candidate !== category);
+
+		if (nextEnabled.length === 0) {
+			return;
+		}
+
+		enabled = nextEnabled;
 	}
 
 	function setAllEnabled(shouldEnable: boolean): void {
-		enabled = shouldEnable ? [...referenceCategories] : [];
+		if (shouldEnable) {
+			enabled = [...referenceCategories];
+		}
 	}
 
 	function handleWindowPointerDown(event: PointerEvent): void {
@@ -132,8 +148,10 @@
 					type="checkbox"
 					class="size-4 accent-gray-900"
 					checked={allSelected}
+					disabled={allSelected}
 					{@attach (node) => {
-						node.indeterminate = !allSelected && !noneSelected;
+						allCategoriesCheckbox = node;
+						return () => (allCategoriesCheckbox = undefined);
 					}}
 					onchange={(event) => setAllEnabled(event.currentTarget.checked)}
 				/>
@@ -150,6 +168,7 @@
 						type="checkbox"
 						class="size-4 accent-gray-900"
 						checked={isCategoryEnabled(category)}
+						disabled={isCategoryEnabled(category) && selectedCategoryCount === 1}
 						onchange={(event) => setCategoryEnabled(category, event.currentTarget.checked)}
 					/>
 					{referenceCategoryLabels[category]}

@@ -1,6 +1,8 @@
 import {
+	getReferenceCategorySelectionKey,
 	mergeRecentReferenceContexts,
 	mergeRecentReferenceIds,
+	referenceCategories,
 	toReferenceFeedContextItem
 } from '$lib/references';
 import { readOrCreateReferenceFeedSeedCookie } from '$lib/server/references/feed-seed-cookie';
@@ -45,8 +47,11 @@ export const POST: RequestHandler = async ({ cookies, platform, request }) => {
 			precedingReferenceIds,
 			parsedRequest.currentReferenceId ? [parsedRequest.currentReferenceId] : []
 		);
+		const enabledCategoryKey = getReferenceCategorySelectionKey(
+			parsedRequest.preferences?.enabledCategories ?? referenceCategories
+		);
 		const random = createSeededRandom(
-			`next:${feedSeed}:${parsedRequest.currentReferenceId ?? ''}:${recentReferenceIds.join('\0')}`
+			`next:${feedSeed}:${enabledCategoryKey}:${parsedRequest.currentReferenceId ?? ''}:${recentReferenceIds.join('\0')}`
 		);
 		const feed = await getReferenceFeed(
 			{ ...parsedRequest, recentReferenceIds, recentReferences: recentReferenceContexts },

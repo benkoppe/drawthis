@@ -1,5 +1,6 @@
 import {
 	isReferenceCategory,
+	normalizeReferenceCategories,
 	trimRecentReferenceIds,
 	type ReferenceCategory,
 	type ReferenceFeedContextItem,
@@ -33,7 +34,7 @@ function parseEnabledCategories(value: unknown): ReferenceCategory[] {
 		}
 	}
 
-	return categories;
+	return normalizeReferenceCategories(categories);
 }
 
 function parseReferenceFeedContextItems(

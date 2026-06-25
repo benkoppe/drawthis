@@ -35,6 +35,7 @@
 		type ReferenceTimelineEntry
 	} from '$lib/references';
 	import CategoryFilter from '$lib/components/CategoryFilter.svelte';
+	import DelayedSpinner from '$lib/components/DelayedSpinner.svelte';
 	import { onMount } from 'svelte';
 	import type { PageData } from './$types';
 
@@ -574,14 +575,7 @@
 					/>
 
 					{#if !isImageLoaded}
-						<div
-							class="pointer-events-none absolute inset-0 flex items-center justify-center"
-							aria-hidden="true"
-						>
-							<span
-								class="h-7 w-7 animate-spin rounded-full border-2 border-gray-300 border-t-gray-600"
-							></span>
-						</div>
+						<DelayedSpinner />
 					{/if}
 				</div>
 

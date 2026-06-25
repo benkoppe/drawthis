@@ -15,6 +15,7 @@
 		parseRecentReferenceContexts,
 		parseRecentReferenceIds,
 		parseReferenceTabTimelineState,
+		referenceCategories,
 		referenceCategoryLabels,
 		referenceContextHistoryStorageKey,
 		referenceHistoryStorageKey,
@@ -28,16 +29,20 @@
 		setLastViewedReferenceHistoryEntryId,
 		toReferenceFeedContextItem,
 		type DrawingReference,
+		type ReferenceCategory,
 		type ReferenceFeedContextItem,
 		type ReferenceTabTimelineState,
 		type ReferenceTimelineEntry
 	} from '$lib/references';
+	import CategoryFilter from '$lib/components/CategoryFilter.svelte';
 	import { onMount } from 'svelte';
 	import type { PageData } from './$types';
 
 	let { data }: { data: PageData } = $props();
 	// svelte-ignore state_referenced_locally
 	const initialReferences = data.references;
+
+	let enabledCategories = $state<ReferenceCategory[]>([...referenceCategories]);
 
 	let currentReference = $state<DrawingReference | undefined>();
 	let referenceQueue = $state<DrawingReference[]>(initialReferences.slice(1));
@@ -487,8 +492,9 @@
 <main
 	class="mx-auto grid h-dvh w-full max-w-[1200px] grid-cols-1 grid-rows-[auto_minmax(0,1fr)] gap-3 p-3 sm:p-4"
 >
-	<header class="min-w-0">
-		<p class="m-0 text-sm font-bold tracking-tight text-gray-700">✏️ DrawThis</p>
+	<header class="flex min-w-0 items-center justify-between gap-3">
+		<p class="m-0 truncate text-sm font-bold tracking-tight text-gray-700">✏️ DrawThis</p>
+		<CategoryFilter bind:enabled={enabledCategories} />
 	</header>
 
 	<section

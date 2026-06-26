@@ -176,7 +176,7 @@ export interface ReferenceCategoryFilterSelection {
 	enabledTopics: ReferenceTopicId[];
 }
 
-export const referenceCategoryFilterStorageKey = 'drawthis:reference-category-filter:v2';
+export const referenceCategoryFilterStorageKey = 'drawthis:reference-category-filter:v3';
 
 export function isReferenceSubject(value: unknown): value is ReferenceSubjectId {
 	return typeof value === 'string' && referenceSubjects.includes(value as ReferenceSubjectId);
@@ -229,6 +229,13 @@ export function getReferenceSubjectTopics(subject: ReferenceSubjectId): Referenc
 
 export function getReferenceTopicSubject(topic: ReferenceTopicId): ReferenceSubjectId {
 	return referenceTopicSubjects[topic];
+}
+
+export function isReferenceTopicForSubject(
+	topic: ReferenceTopicId,
+	subject: ReferenceSubjectId
+): boolean {
+	return referenceTopicSubjects[topic] === subject;
 }
 
 export function normalizeReferencePracticeFocuses(
@@ -299,6 +306,28 @@ export function createReferenceCategoryFilterSelection(
 	return { enabledSubjects: normalizedSubjects, enabledTopics: normalizedTopics };
 }
 
+export function isReferenceTaxonomyInCategorySelection(
+	taxonomy: { primarySubject: ReferenceSubjectId; topic?: ReferenceTopicId },
+	enabledSubjects: readonly ReferenceSubjectId[],
+	enabledTopics: readonly ReferenceTopicId[]
+): boolean {
+	const normalizedSubjects = normalizeReferenceSubjects(enabledSubjects);
+	const normalizedTopics = normalizeReferenceTopics(enabledTopics, normalizedSubjects);
+
+	return (
+		normalizedSubjects.includes(taxonomy.primarySubject) &&
+		(taxonomy.topic === undefined || normalizedTopics.includes(taxonomy.topic))
+	);
+}
+
+export function isReferenceInCategorySelection(
+	reference: { taxonomy: { primarySubject: ReferenceSubjectId; topic?: ReferenceTopicId } },
+	enabledSubjects: readonly ReferenceSubjectId[],
+	enabledTopics: readonly ReferenceTopicId[]
+): boolean {
+	return isReferenceTaxonomyInCategorySelection(reference.taxonomy, enabledSubjects, enabledTopics);
+}
+
 export function parseReferenceCategoryFilterSelection(
 	value: string | null | undefined
 ): ReferenceCategoryFilterSelection | undefined {
@@ -314,7 +343,7 @@ export function parseReferenceCategoryFilterSelection(
 		return undefined;
 	}
 
-	if (!isRecord(parsed) || parsed.version !== 1) {
+	if (!isRecord(parsed) || parsed.version !== 2) {
 		return undefined;
 	}
 
@@ -337,7 +366,7 @@ export function serializeReferenceCategoryFilterSelection(
 	);
 
 	return JSON.stringify({
-		version: 1,
+		version: 2,
 		subjects: normalizedSelection.enabledSubjects,
 		topics: normalizedSelection.enabledTopics
 	});

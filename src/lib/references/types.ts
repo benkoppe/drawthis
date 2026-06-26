@@ -14,16 +14,22 @@ export interface ReferenceTaxonomy {
 	primarySubject: ReferenceSubjectId;
 	topic?: ReferenceTopicId;
 	secondarySubjects?: readonly ReferenceSubjectId[];
-	sceneTypes?: readonly ReferenceSceneType[];
 }
 
 export interface ReferenceTrainingMetadata {
 	focuses?: readonly ReferencePracticeFocus[];
+	sceneTypes?: readonly ReferenceSceneType[];
 	complexity?: ReferenceVisualComplexity;
 }
 
+export interface ReferenceSeedMetadata {
+	id: string;
+	label: string;
+	query?: string;
+}
+
 export interface ReferenceSelectionMetadata {
-	seedId?: string;
+	seed?: ReferenceSeedMetadata;
 }
 
 export interface DrawingReference {
@@ -61,12 +67,12 @@ export interface ReferenceFeedPreferences {
 
 export interface ReferenceFeedContextItem {
 	id: string;
-	primarySubject: ReferenceSubjectId;
-	topic?: ReferenceTopicId;
+	taxonomy: ReferenceTaxonomy;
 	providerId?: ReferenceProviderId;
-	seedId?: string;
-	sceneTypes?: readonly ReferenceSceneType[];
-	practiceFocuses?: readonly ReferencePracticeFocus[];
+	selection?: {
+		seedId?: string;
+	};
+	training?: ReferenceTrainingMetadata;
 }
 
 export interface ReferenceFeedRequest {

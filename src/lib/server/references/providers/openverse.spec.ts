@@ -54,7 +54,12 @@ describe('createOpenverseReferenceProvider', () => {
 		const result = await provider.search({
 			count: 1,
 			primarySubject: 'places',
+			topic: 'kitchens-workspaces',
 			query: 'cluttered desk',
+			sceneTypes: ['interior', 'workplace'],
+			practiceFocuses: ['perspective', 'composition'],
+			complexity: 'dense',
+			seed: { id: 'places-cluttered-desk', label: 'Cluttered desk', query: 'cluttered desk' },
 			orientation: 'landscape'
 		});
 
@@ -78,7 +83,19 @@ describe('createOpenverseReferenceProvider', () => {
 						referenceId: 'openverse-image-1'
 					},
 					title: 'Cluttered desk by a window',
-					taxonomy: { primarySubject: 'places' },
+					taxonomy: { primarySubject: 'places', topic: 'kitchens-workspaces' },
+					training: {
+						sceneTypes: ['interior', 'workplace'],
+						focuses: ['perspective', 'composition'],
+						complexity: 'dense'
+					},
+					selection: {
+						seed: {
+							id: 'places-cluttered-desk',
+							label: 'Cluttered desk',
+							query: 'cluttered desk'
+						}
+					},
 					image: {
 						url: 'https://images.example.com/desk.jpg',
 						alt: 'Cluttered desk by a window by Example Creator',

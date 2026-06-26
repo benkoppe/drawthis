@@ -4,6 +4,7 @@ import type {
 	ReferencePracticeFocus,
 	ReferenceProviderId,
 	ReferenceSceneType,
+	ReferenceSeedMetadata,
 	ReferenceSubjectId,
 	ReferenceTopicId,
 	ReferenceVisualComplexity
@@ -26,7 +27,7 @@ export interface ProviderSearchRequest {
 	sceneTypes?: readonly ReferenceSceneType[];
 	practiceFocuses?: readonly ReferencePracticeFocus[];
 	complexity?: ReferenceVisualComplexity;
-	seedId?: string;
+	seed?: ReferenceSeedMetadata;
 	orientation?: ReferenceOrientation;
 	cursor?: string;
 }

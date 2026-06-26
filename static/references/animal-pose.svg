@@ -1,0 +1,19 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 800 600" role="img" aria-labelledby="title desc">
+	<title id="title">Animal Pose</title>
+	<desc id="desc">Simple line drawing of a seated animal pose for drawing practice.</desc>
+	<rect width="800" height="600" fill="#f7f7f4"/>
+	<g fill="none" stroke="#222" stroke-width="10" stroke-linecap="round" stroke-linejoin="round">
+		<ellipse cx="385" cy="340" rx="150" ry="105"/>
+		<circle cx="540" cy="255" r="75"/>
+		<path d="M505 195l-26-74 72 38"/>
+		<path d="M572 193l48-64 17 78"/>
+		<path d="M555 255h2"/>
+		<path d="M610 265c22 8 42 8 62 0"/>
+		<path d="M465 405c-24 44-68 70-126 78"/>
+		<path d="M320 425c-38 35-83 52-136 51"/>
+		<path d="M290 310c-54-32-105-37-153-15"/>
+		<path d="M230 470h300"/>
+		<path d="M320 330c50-28 103-30 160-5" opacity="0.35"/>
+		<path d="M365 245c24 52 22 113-8 181" opacity="0.35"/>
+	</g>
+</svg>

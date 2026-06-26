@@ -226,11 +226,11 @@ function toDrawingReference(photo: PexelsPhoto, request: ProviderSearchRequest):
 
 	const taxonomy: DrawingReference['taxonomy'] = {
 		primarySubject,
-		secondarySubjects: request.secondarySubjects,
-		sceneTypes: request.sceneTypes
+		secondarySubjects: request.secondarySubjects
 	};
 	const training: DrawingReference['training'] = {
 		focuses: request.practiceFocuses,
+		sceneTypes: request.sceneTypes,
 		complexity: request.complexity
 	};
 
@@ -248,7 +248,7 @@ function toDrawingReference(photo: PexelsPhoto, request: ProviderSearchRequest):
 		title: makeTitle(photo),
 		taxonomy,
 		training,
-		selection: request.seedId === undefined ? undefined : { seedId: request.seedId },
+		selection: request.seed === undefined ? undefined : { seed: request.seed },
 		image: referenceImage,
 		attribution
 	};

@@ -3,16 +3,21 @@ import {
 	isReferenceSceneType,
 	isReferenceSubject,
 	isReferenceTopic,
+	isReferenceTopicForSubject,
+	isReferenceVisualComplexity,
 	normalizeReferencePracticeFocuses,
 	normalizeReferenceSceneTypes,
 	normalizeReferenceSubjects,
 	normalizeReferenceTopics,
+	referenceSubjects,
 	trimRecentReferenceIds,
 	type ReferenceFeedContextItem,
 	type ReferenceFeedPreferences,
 	type ReferenceFeedRequest,
 	type ReferenceSubjectId,
-	type ReferenceTopicId
+	type ReferenceTaxonomy,
+	type ReferenceTopicId,
+	type ReferenceTrainingMetadata
 } from '$lib/references';
 import { error } from '@sveltejs/kit';
 
@@ -44,7 +49,10 @@ function parseEnabledSubjects(value: unknown): ReferenceSubjectId[] {
 	return normalizeReferenceSubjects(subjects);
 }
 
-function parseEnabledTopics(value: unknown): ReferenceTopicId[] {
+function parseEnabledTopics(
+	value: unknown,
+	enabledSubjects: readonly ReferenceSubjectId[]
+): ReferenceTopicId[] {
 	if (!Array.isArray(value)) {
 		throw error(400, 'preferences.enabledTopics must be an array');
 	}
@@ -65,7 +73,138 @@ function parseEnabledTopics(value: unknown): ReferenceTopicId[] {
 		}
 	}
 
-	return normalizeReferenceTopics(topics);
+	const normalizedTopics = normalizeReferenceTopics(topics, enabledSubjects);
+
+	if (normalizedTopics.length === 0) {
+		throw error(
+			400,
+			'preferences.enabledTopics must include at least one topic for an enabled subject'
+		);
+	}
+
+	return normalizedTopics;
+}
+
+function parseReferenceTaxonomy(value: unknown, fieldName: string): ReferenceTaxonomy {
+	if (!isPlainObject(value)) {
+		throw error(400, `${fieldName}.taxonomy must be an object`);
+	}
+
+	if (!isReferenceSubject(value.primarySubject)) {
+		throw error(400, `${fieldName}.taxonomy.primarySubject is not supported`);
+	}
+
+	const taxonomy: ReferenceTaxonomy = { primarySubject: value.primarySubject };
+
+	if (value.topic !== undefined) {
+		if (!isReferenceTopic(value.topic)) {
+			throw error(400, `${fieldName}.taxonomy.topic is not supported`);
+		}
+
+		if (!isReferenceTopicForSubject(value.topic, value.primarySubject)) {
+			throw error(400, `${fieldName}.taxonomy.topic does not belong to primarySubject`);
+		}
+
+		taxonomy.topic = value.topic;
+	}
+
+	if (value.secondarySubjects !== undefined) {
+		if (!Array.isArray(value.secondarySubjects)) {
+			throw error(400, `${fieldName}.taxonomy.secondarySubjects must be an array`);
+		}
+
+		const secondarySubjects: ReferenceSubjectId[] = [];
+
+		for (const subject of value.secondarySubjects) {
+			if (!isReferenceSubject(subject)) {
+				throw error(400, `${fieldName}.taxonomy.secondarySubjects contains unsupported subject`);
+			}
+
+			if (subject !== taxonomy.primarySubject && !secondarySubjects.includes(subject)) {
+				secondarySubjects.push(subject);
+			}
+		}
+
+		if (secondarySubjects.length > 0) {
+			taxonomy.secondarySubjects = normalizeReferenceSubjects(secondarySubjects);
+		}
+	}
+
+	return taxonomy;
+}
+
+function parseReferenceTraining(
+	value: unknown,
+	fieldName: string
+): ReferenceTrainingMetadata | undefined {
+	if (value === undefined) {
+		return undefined;
+	}
+
+	if (!isPlainObject(value)) {
+		throw error(400, `${fieldName}.training must be an object`);
+	}
+
+	const training: ReferenceTrainingMetadata = {};
+
+	if (value.sceneTypes !== undefined) {
+		if (!Array.isArray(value.sceneTypes)) {
+			throw error(400, `${fieldName}.training.sceneTypes must be an array`);
+		}
+
+		const sceneTypes = normalizeReferenceSceneTypes(value.sceneTypes.filter(isReferenceSceneType));
+
+		if (sceneTypes !== undefined) {
+			training.sceneTypes = sceneTypes;
+		}
+	}
+
+	if (value.focuses !== undefined) {
+		if (!Array.isArray(value.focuses)) {
+			throw error(400, `${fieldName}.training.focuses must be an array`);
+		}
+
+		const focuses = normalizeReferencePracticeFocuses(
+			value.focuses.filter(isReferencePracticeFocus)
+		);
+
+		if (focuses !== undefined) {
+			training.focuses = focuses;
+		}
+	}
+
+	if (value.complexity !== undefined) {
+		if (!isReferenceVisualComplexity(value.complexity)) {
+			throw error(400, `${fieldName}.training.complexity is not supported`);
+		}
+
+		training.complexity = value.complexity;
+	}
+
+	return Object.keys(training).length > 0 ? training : undefined;
+}
+
+function parseReferenceSelection(
+	value: unknown,
+	fieldName: string
+): ReferenceFeedContextItem['selection'] {
+	if (value === undefined) {
+		return undefined;
+	}
+
+	if (!isPlainObject(value)) {
+		throw error(400, `${fieldName}.selection must be an object`);
+	}
+
+	if (value.seedId === undefined) {
+		return undefined;
+	}
+
+	if (typeof value.seedId !== 'string') {
+		throw error(400, `${fieldName}.selection.seedId must be a string`);
+	}
+
+	return value.seedId.length > 0 ? { seedId: value.seedId } : undefined;
 }
 
 function parseReferenceFeedContextItems(
@@ -88,28 +227,8 @@ function parseReferenceFeedContextItems(
 			throw error(400, `${fieldName}.id must be a non-empty string`);
 		}
 
-		if (!isReferenceSubject(reference.primarySubject)) {
-			throw error(400, `${fieldName}.primarySubject is not supported`);
-		}
-
-		if (reference.topic !== undefined && !isReferenceTopic(reference.topic)) {
-			throw error(400, `${fieldName}.topic is not supported`);
-		}
-
 		if (reference.providerId !== undefined && typeof reference.providerId !== 'string') {
 			throw error(400, `${fieldName}.providerId must be a string`);
-		}
-
-		if (reference.seedId !== undefined && typeof reference.seedId !== 'string') {
-			throw error(400, `${fieldName}.seedId must be a string`);
-		}
-
-		if (reference.sceneTypes !== undefined && !Array.isArray(reference.sceneTypes)) {
-			throw error(400, `${fieldName}.sceneTypes must be an array`);
-		}
-
-		if (reference.practiceFocuses !== undefined && !Array.isArray(reference.practiceFocuses)) {
-			throw error(400, `${fieldName}.practiceFocuses must be an array`);
 		}
 
 		if (referenceIds.has(reference.id)) {
@@ -118,39 +237,21 @@ function parseReferenceFeedContextItems(
 
 		const parsedReference: ReferenceFeedContextItem = {
 			id: reference.id,
-			primarySubject: reference.primarySubject
+			taxonomy: parseReferenceTaxonomy(reference.taxonomy, fieldName)
 		};
-
-		if (reference.topic !== undefined) {
-			parsedReference.topic = reference.topic;
-		}
+		const selection = parseReferenceSelection(reference.selection, fieldName);
+		const training = parseReferenceTraining(reference.training, fieldName);
 
 		if (reference.providerId !== undefined && reference.providerId.length > 0) {
 			parsedReference.providerId = reference.providerId;
 		}
 
-		if (reference.seedId !== undefined && reference.seedId.length > 0) {
-			parsedReference.seedId = reference.seedId;
+		if (selection !== undefined) {
+			parsedReference.selection = selection;
 		}
 
-		if (Array.isArray(reference.sceneTypes)) {
-			const sceneTypes = normalizeReferenceSceneTypes(
-				reference.sceneTypes.filter(isReferenceSceneType)
-			);
-
-			if (sceneTypes !== undefined) {
-				parsedReference.sceneTypes = sceneTypes;
-			}
-		}
-
-		if (Array.isArray(reference.practiceFocuses)) {
-			const practiceFocuses = normalizeReferencePracticeFocuses(
-				reference.practiceFocuses.filter(isReferencePracticeFocus)
-			);
-
-			if (practiceFocuses !== undefined) {
-				parsedReference.practiceFocuses = practiceFocuses;
-			}
+		if (training !== undefined) {
+			parsedReference.training = training;
 		}
 
 		referenceIds.add(reference.id);
@@ -166,13 +267,18 @@ function parsePreferences(value: unknown): ReferenceFeedPreferences {
 	}
 
 	const preferences: ReferenceFeedPreferences = {};
+	const enabledSubjects =
+		value.enabledSubjects === undefined ? undefined : parseEnabledSubjects(value.enabledSubjects);
 
-	if (value.enabledSubjects !== undefined) {
-		preferences.enabledSubjects = parseEnabledSubjects(value.enabledSubjects);
+	if (enabledSubjects !== undefined) {
+		preferences.enabledSubjects = enabledSubjects;
 	}
 
 	if (value.enabledTopics !== undefined) {
-		preferences.enabledTopics = parseEnabledTopics(value.enabledTopics);
+		preferences.enabledTopics = parseEnabledTopics(
+			value.enabledTopics,
+			enabledSubjects ?? referenceSubjects
+		);
 	}
 
 	return preferences;

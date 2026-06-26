@@ -65,7 +65,12 @@ describe('createPexelsReferenceProvider', () => {
 		const result = await provider.search({
 			count: 1,
 			primarySubject: 'places',
+			topic: 'kitchens-workspaces',
 			query: 'cluttered desk',
+			sceneTypes: ['interior', 'workplace'],
+			practiceFocuses: ['perspective', 'composition'],
+			complexity: 'dense',
+			seed: { id: 'places-cluttered-desk', label: 'Cluttered desk', query: 'cluttered desk' },
 			orientation: 'landscape'
 		});
 
@@ -92,7 +97,19 @@ describe('createPexelsReferenceProvider', () => {
 						referenceId: '2014422'
 					},
 					title: 'Brown rocks during golden hour',
-					taxonomy: { primarySubject: 'places' },
+					taxonomy: { primarySubject: 'places', topic: 'kitchens-workspaces' },
+					training: {
+						sceneTypes: ['interior', 'workplace'],
+						focuses: ['perspective', 'composition'],
+						complexity: 'dense'
+					},
+					selection: {
+						seed: {
+							id: 'places-cluttered-desk',
+							label: 'Cluttered desk',
+							query: 'cluttered desk'
+						}
+					},
 					image: {
 						url: 'https://images.pexels.com/photos/2014422/pexels-photo-2014422.jpeg?auto=compress&cs=tinysrgb&dpr=2&h=650&w=940',
 						alt: 'Brown rocks during golden hour',

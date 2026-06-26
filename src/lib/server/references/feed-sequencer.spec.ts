@@ -57,7 +57,7 @@ describe('sequenceReferenceCandidates', () => {
 			[makeCandidate('objects-1', 'objects', 0), makeCandidate('places-1', 'places', 1)],
 			{
 				count: 2,
-				precedingReferences: [{ id: 'test:current', primarySubject: 'objects' }]
+				precedingReferences: [{ id: 'test:current', taxonomy: { primarySubject: 'objects' } }]
 			}
 		);
 
@@ -77,5 +77,45 @@ describe('sequenceReferenceCandidates', () => {
 			'objects',
 			'objects'
 		]);
+	});
+
+	it('uses topic, seed, scene, focus, and complexity context to avoid repetitive training metadata', () => {
+		const repeated = makeCandidate('repeated', 'objects', 0);
+		repeated.reference.taxonomy.topic = 'still-life-groups';
+		repeated.reference.selection = {
+			seed: { id: 'objects-mug-bottle', label: 'Mug and bottle' }
+		};
+		repeated.reference.training = {
+			sceneTypes: ['still-life'],
+			focuses: ['construction'],
+			complexity: 'moderate'
+		};
+
+		const varied = makeCandidate('varied', 'objects', 1);
+		varied.reference.taxonomy.topic = 'tools';
+		varied.reference.selection = { seed: { id: 'objects-tools-table', label: 'Tools on table' } };
+		varied.reference.training = {
+			sceneTypes: ['workplace'],
+			focuses: ['perspective'],
+			complexity: 'complex'
+		};
+
+		const references = sequenceReferenceCandidates([repeated, varied], {
+			count: 1,
+			recentReferences: [
+				{
+					id: 'test:recent',
+					taxonomy: { primarySubject: 'objects', topic: 'still-life-groups' },
+					selection: { seedId: 'objects-mug-bottle' },
+					training: {
+						sceneTypes: ['still-life'],
+						focuses: ['construction'],
+						complexity: 'moderate'
+					}
+				}
+			]
+		});
+
+		expect(references.map((reference) => reference.id)).toEqual(['test:varied']);
 	});
 });

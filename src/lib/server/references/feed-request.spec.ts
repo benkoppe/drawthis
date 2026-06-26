@@ -37,32 +37,38 @@ describe('parseReferenceFeedRequest', () => {
 		expect(
 			parseReferenceFeedRequest({
 				recentReferences: [
-					{ id: 'pexels:1', primarySubject: 'places', providerId: 'pexels' },
-					{ id: 'pexels:1', primarySubject: 'places', providerId: 'pexels' }
+					{ id: 'pexels:1', taxonomy: { primarySubject: 'places' }, providerId: 'pexels' },
+					{ id: 'pexels:1', taxonomy: { primarySubject: 'places' }, providerId: 'pexels' }
 				],
 				precedingReferences: [
 					{
 						id: 'openverse:2',
-						primarySubject: 'nature',
-						topic: 'plants-flowers',
+						taxonomy: { primarySubject: 'nature', topic: 'plants-flowers' },
 						providerId: 'openverse',
-						seedId: 'nature-potted-plant',
-						sceneTypes: ['interior'],
-						practiceFocuses: ['shape']
+						selection: { seedId: 'nature-potted-plant' },
+						training: {
+							sceneTypes: ['interior'],
+							focuses: ['shape'],
+							complexity: 'moderate'
+						}
 					}
 				]
 			})
 		).toEqual({
-			recentReferences: [{ id: 'pexels:1', primarySubject: 'places', providerId: 'pexels' }],
+			recentReferences: [
+				{ id: 'pexels:1', taxonomy: { primarySubject: 'places' }, providerId: 'pexels' }
+			],
 			precedingReferences: [
 				{
 					id: 'openverse:2',
-					primarySubject: 'nature',
-					topic: 'plants-flowers',
+					taxonomy: { primarySubject: 'nature', topic: 'plants-flowers' },
 					providerId: 'openverse',
-					seedId: 'nature-potted-plant',
-					sceneTypes: ['interior'],
-					practiceFocuses: ['shape']
+					selection: { seedId: 'nature-potted-plant' },
+					training: {
+						sceneTypes: ['interior'],
+						focuses: ['shape'],
+						complexity: 'moderate'
+					}
 				}
 			]
 		});
@@ -72,9 +78,21 @@ describe('parseReferenceFeedRequest', () => {
 		expectBadRequest(
 			() =>
 				parseReferenceFeedRequest({
-					precedingReferences: [{ id: 'pexels:1', primarySubject: 'bad' }]
+					precedingReferences: [{ id: 'pexels:1', taxonomy: { primarySubject: 'bad' } }]
 				}),
-			'precedingReferences.primarySubject is not supported'
+			'precedingReferences.taxonomy.primarySubject is not supported'
+		);
+	});
+
+	it('rejects a topic that does not belong to the context subject', () => {
+		expectBadRequest(
+			() =>
+				parseReferenceFeedRequest({
+					precedingReferences: [
+						{ id: 'pexels:1', taxonomy: { primarySubject: 'people', topic: 'rooms' } }
+					]
+				}),
+			'precedingReferences.taxonomy.topic does not belong to primarySubject'
 		);
 	});
 
@@ -131,6 +149,16 @@ describe('parseReferenceFeedRequest', () => {
 		expectBadRequest(
 			() => parseReferenceFeedRequest({ preferences: { enabledTopics: [] } }),
 			'preferences.enabledTopics must include at least one topic'
+		);
+	});
+
+	it('rejects enabled topics that do not belong to enabled subjects', () => {
+		expectBadRequest(
+			() =>
+				parseReferenceFeedRequest({
+					preferences: { enabledSubjects: ['people'], enabledTopics: ['rooms'] }
+				}),
+			'preferences.enabledTopics must include at least one topic for an enabled subject'
 		);
 	});
 

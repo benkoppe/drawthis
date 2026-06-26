@@ -38,6 +38,7 @@
 		serializeReferenceTabTimelineState,
 		getReferenceSubjectSelectionKey,
 		getReferenceTopicSelectionKey,
+		isReferenceInCategorySelection,
 		setLastViewedReferenceHistoryEntryId,
 		toReferenceFeedContextItem,
 		type DrawingReference,
@@ -367,10 +368,7 @@
 		subjects: readonly ReferenceSubjectId[],
 		topics: readonly ReferenceTopicId[]
 	): boolean {
-		return (
-			subjects.includes(reference.taxonomy.primarySubject) &&
-			(reference.taxonomy.topic === undefined || topics.includes(reference.taxonomy.topic))
-		);
+		return isReferenceInCategorySelection(reference, subjects, topics);
 	}
 
 	function filterReferencesByEnabledCategories(

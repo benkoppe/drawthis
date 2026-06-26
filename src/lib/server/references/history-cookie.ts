@@ -44,19 +44,21 @@ function compactReferenceContextForCookie(
 ): ReferenceFeedContextItem {
 	const compactContext: ReferenceFeedContextItem = {
 		id: referenceContext.id,
-		primarySubject: referenceContext.primarySubject
+		taxonomy: {
+			primarySubject: referenceContext.taxonomy.primarySubject
+		}
 	};
 
-	if (referenceContext.topic !== undefined) {
-		compactContext.topic = referenceContext.topic;
+	if (referenceContext.taxonomy.topic !== undefined) {
+		compactContext.taxonomy.topic = referenceContext.taxonomy.topic;
 	}
 
 	if (referenceContext.providerId !== undefined) {
 		compactContext.providerId = referenceContext.providerId;
 	}
 
-	if (referenceContext.seedId !== undefined) {
-		compactContext.seedId = referenceContext.seedId;
+	if (referenceContext.selection?.seedId !== undefined) {
+		compactContext.selection = { seedId: referenceContext.selection.seedId };
 	}
 
 	return compactContext;

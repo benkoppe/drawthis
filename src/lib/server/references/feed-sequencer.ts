@@ -4,8 +4,10 @@ import type {
 	ReferencePracticeFocus,
 	ReferenceProviderId,
 	ReferenceSceneType,
+	ReferenceSeedMetadata,
 	ReferenceSubjectId,
-	ReferenceTopicId
+	ReferenceTopicId,
+	ReferenceVisualComplexity
 } from '$lib/references';
 
 export const referenceSelectionRanks = {
@@ -21,7 +23,7 @@ export interface ReferenceCandidate {
 	reference: DrawingReference;
 	rank: ReferenceSelectionRank;
 	order: number;
-	seedId?: string;
+	seed?: ReferenceSeedMetadata;
 }
 
 export interface SequenceReferencesOptions {
@@ -39,6 +41,7 @@ interface CandidateScore {
 	samePreviousSeedPenalty: number;
 	recentSceneTypePenalty: number;
 	recentPracticeFocusPenalty: number;
+	recentComplexityPenalty: number;
 	samePreviousProviderPenalty: number;
 	order: number;
 }
@@ -52,6 +55,7 @@ const recentTopicUnitPenalty = 75;
 const samePreviousSeedPenalty = 300;
 const recentSceneTypeUnitPenalty = 20;
 const recentPracticeFocusUnitPenalty = 12;
+const recentComplexityUnitPenalty = 8;
 const samePreviousProviderPenalty = 5;
 const recentContextWindowSize = 12;
 
@@ -65,6 +69,7 @@ function compareScores(left: CandidateScore, right: CandidateScore): number {
 		left.recentTopicPenalty - right.recentTopicPenalty ||
 		left.recentSceneTypePenalty - right.recentSceneTypePenalty ||
 		left.recentPracticeFocusPenalty - right.recentPracticeFocusPenalty ||
+		left.recentComplexityPenalty - right.recentComplexityPenalty ||
 		left.samePreviousProviderPenalty - right.samePreviousProviderPenalty ||
 		left.order - right.order
 	);
@@ -77,11 +82,13 @@ function isReferenceCandidate(reference: SequencingContextItem): reference is Re
 function getPrimarySubject(reference: SequencingContextItem): ReferenceSubjectId {
 	return isReferenceCandidate(reference)
 		? reference.reference.taxonomy.primarySubject
-		: reference.primarySubject;
+		: reference.taxonomy.primarySubject;
 }
 
 function getTopic(reference: SequencingContextItem): ReferenceTopicId | undefined {
-	return isReferenceCandidate(reference) ? reference.reference.taxonomy.topic : reference.topic;
+	return isReferenceCandidate(reference)
+		? reference.reference.taxonomy.topic
+		: reference.taxonomy.topic;
 }
 
 function getProviderId(reference: SequencingContextItem): ReferenceProviderId | undefined {
@@ -89,19 +96,21 @@ function getProviderId(reference: SequencingContextItem): ReferenceProviderId | 
 }
 
 function getSeedId(reference: SequencingContextItem): string | undefined {
-	return isReferenceCandidate(reference) ? reference.reference.selection?.seedId : reference.seedId;
+	return isReferenceCandidate(reference)
+		? reference.reference.selection?.seed?.id
+		: reference.selection?.seedId;
 }
 
 function getSceneTypes(reference: SequencingContextItem): readonly ReferenceSceneType[] {
 	return isReferenceCandidate(reference)
-		? (reference.reference.taxonomy.sceneTypes ?? [])
-		: (reference.sceneTypes ?? []);
+		? (reference.reference.training?.sceneTypes ?? [])
+		: (reference.training?.sceneTypes ?? []);
 }
 
 function getPracticeFocuses(reference: SequencingContextItem): readonly ReferencePracticeFocus[] {
 	return isReferenceCandidate(reference)
 		? (reference.reference.training?.focuses ?? [])
-		: (reference.practiceFocuses ?? []);
+		: (reference.training?.focuses ?? []);
 }
 
 function countRecentSubjectUses(
@@ -144,6 +153,25 @@ function countRecentOverlap<T>(
 	}, 0);
 }
 
+function getComplexity(reference: SequencingContextItem): ReferenceVisualComplexity | undefined {
+	return isReferenceCandidate(reference)
+		? reference.reference.training?.complexity
+		: reference.training?.complexity;
+}
+
+function countRecentComplexityUses(
+	complexity: ReferenceVisualComplexity | undefined,
+	context: readonly SequencingContextItem[]
+): number {
+	if (complexity === undefined) {
+		return 0;
+	}
+
+	return context
+		.slice(-recentContextWindowSize)
+		.reduce((count, reference) => count + (getComplexity(reference) === complexity ? 1 : 0), 0);
+}
+
 function scoreCandidate(
 	candidate: ReferenceCandidate,
 	context: readonly SequencingContextItem[]
@@ -152,7 +180,7 @@ function scoreCandidate(
 	const candidateSubject = candidate.reference.taxonomy.primarySubject;
 	const candidateTopic = candidate.reference.taxonomy.topic;
 	const candidateProviderId = candidate.reference.provider.id;
-	const candidateSeedId = candidate.reference.selection?.seedId ?? candidate.seedId;
+	const candidateSeedId = candidate.reference.selection?.seed?.id ?? candidate.seed?.id;
 	const previousProviderId = previousReference ? getProviderId(previousReference) : undefined;
 	const previousSeedId = previousReference ? getSeedId(previousReference) : undefined;
 	const previousTopic = previousReference ? getTopic(previousReference) : undefined;
@@ -175,11 +203,14 @@ function scoreCandidate(
 				? samePreviousSeedPenalty
 				: 0,
 		recentSceneTypePenalty:
-			countRecentOverlap(candidate.reference.taxonomy.sceneTypes ?? [], context, getSceneTypes) *
+			countRecentOverlap(candidate.reference.training?.sceneTypes ?? [], context, getSceneTypes) *
 			recentSceneTypeUnitPenalty,
 		recentPracticeFocusPenalty:
 			countRecentOverlap(candidate.reference.training?.focuses ?? [], context, getPracticeFocuses) *
 			recentPracticeFocusUnitPenalty,
+		recentComplexityPenalty:
+			countRecentComplexityUses(candidate.reference.training?.complexity, context) *
+			recentComplexityUnitPenalty,
 		samePreviousProviderPenalty:
 			previousProviderId === candidateProviderId ? samePreviousProviderPenalty : 0,
 		order: candidate.order

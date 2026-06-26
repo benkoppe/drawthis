@@ -6,6 +6,7 @@ import {
 	referenceSubjects,
 	referenceTopics,
 	type ReferenceFeedRequest,
+	type ReferenceSeedMetadata,
 	type ReferenceSubjectId,
 	type ReferenceTopicId
 } from '$lib/references';
@@ -144,6 +145,14 @@ function getRandomInitialCursorPage(
 	return String(Math.floor(randomValue * (max - min + 1)) + min);
 }
 
+function makeSeedMetadata(seed: ReferenceSearchSeed): ReferenceSeedMetadata {
+	return {
+		id: seed.id,
+		label: seed.label,
+		query: seed.query
+	};
+}
+
 function makeProviderSearchRequest(
 	provider: ReferenceProvider,
 	seed: ReferenceSearchSeed,
@@ -154,7 +163,7 @@ function makeProviderSearchRequest(
 	const request: ProviderSearchRequest = {
 		count,
 		primarySubject: seed.primarySubject,
-		seedId: seed.id
+		seed: makeSeedMetadata(seed)
 	};
 
 	if (seed.topic !== undefined) {

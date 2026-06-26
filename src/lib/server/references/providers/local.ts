@@ -81,19 +81,45 @@ const localReferenceCatalog = [
 		complexity: 'moderate',
 		imageUrl: '/references/plant-window.svg',
 		alt: 'Line drawing of a potted plant on a low table in front of a window with curtains.'
+	},
+	{
+		id: 'animal-pose',
+		title: 'Animal Pose',
+		primarySubject: 'animals',
+		topic: 'pets',
+		sceneTypes: ['isolated-subject'],
+		practiceFocuses: ['gesture', 'shape', 'proportion'],
+		complexity: 'moderate',
+		imageUrl: '/references/animal-pose.svg',
+		alt: 'Line drawing of a seated animal with simple gesture and construction shapes.'
+	},
+	{
+		id: 'bicycle-study',
+		title: 'Bicycle Study',
+		primarySubject: 'vehicles-machines',
+		topic: 'bikes-motorcycles',
+		sceneTypes: ['isolated-subject'],
+		practiceFocuses: ['construction', 'shape', 'negative-space'],
+		complexity: 'complex',
+		imageUrl: '/references/bicycle-study.svg',
+		alt: 'Line drawing of a bicycle with two wheels, frame, handlebars, and seat.'
 	}
 ] satisfies readonly LocalReferenceCatalogItem[];
+
+const localProviderSubjects = referenceSubjects.filter((subject) =>
+	localReferenceCatalog.some((reference) => reference.primarySubject === subject)
+);
 
 function toDrawingReference(
 	item: LocalReferenceCatalogItem,
 	request: ProviderSearchRequest
 ): DrawingReference {
 	const taxonomy: DrawingReference['taxonomy'] = {
-		primarySubject: item.primarySubject,
-		sceneTypes: item.sceneTypes
+		primarySubject: item.primarySubject
 	};
 	const training: DrawingReference['training'] = {
 		focuses: item.practiceFocuses,
+		sceneTypes: item.sceneTypes,
 		complexity: item.complexity
 	};
 
@@ -111,7 +137,7 @@ function toDrawingReference(
 		title: item.title,
 		taxonomy,
 		training,
-		selection: request.seedId === undefined ? undefined : { seedId: request.seedId },
+		selection: request.seed === undefined ? undefined : { seed: request.seed },
 		image: {
 			url: item.imageUrl,
 			alt: item.alt
@@ -128,7 +154,7 @@ export const localReferenceProvider = {
 	id: localProviderId,
 	name: localProviderName,
 	capabilities: {
-		subjects: referenceSubjects,
+		subjects: localProviderSubjects,
 		supportsSearch: false,
 		supportsPagination: false,
 		supportsOrientation: false,
@@ -140,9 +166,12 @@ export const localReferenceProvider = {
 					(reference) => reference.primarySubject === request.primarySubject
 				)
 			: localReferenceCatalog;
+		const topicMatches = request.topic
+			? subjectMatches.filter((reference) => reference.topic === request.topic)
+			: subjectMatches;
 
 		return {
-			references: subjectMatches
+			references: topicMatches
 				.slice(0, request.count)
 				.map((item) => toDrawingReference(item, request)),
 			cachePolicy: {

@@ -48,7 +48,26 @@ function makeProvider(
 			attributionRequired: true
 		},
 		async search(request) {
-			return search(request);
+			const result = search(request);
+
+			return {
+				...result,
+				references: result.references.map((reference) => ({
+					...reference,
+					taxonomy: {
+						...reference.taxonomy,
+						primarySubject: request.primarySubject ?? reference.taxonomy.primarySubject,
+						...(request.topic === undefined ? {} : { topic: request.topic })
+					},
+					training: {
+						...reference.training,
+						focuses: request.practiceFocuses ?? reference.training?.focuses,
+						sceneTypes: request.sceneTypes ?? reference.training?.sceneTypes,
+						complexity: request.complexity ?? reference.training?.complexity
+					},
+					selection: request.seed === undefined ? reference.selection : { seed: request.seed }
+				}))
+			};
 		}
 	};
 }
@@ -287,8 +306,8 @@ describe('getReferenceFeed', () => {
 
 		expect(feed.references.map((reference) => reference.taxonomy.primarySubject)).toEqual([
 			'people',
-			'objects',
 			'places',
+			'objects',
 			'nature'
 		]);
 	});
@@ -305,7 +324,9 @@ describe('getReferenceFeed', () => {
 		const feed = await getReferenceFeed(
 			{
 				count: 2,
-				precedingReferences: [{ id: 'test:queued', primarySubject: 'objects', providerId: 'test' }]
+				precedingReferences: [
+					{ id: 'test:queued', taxonomy: { primarySubject: 'objects' }, providerId: 'test' }
+				]
 			},
 			{ providers: [provider], random: () => 0 }
 		);

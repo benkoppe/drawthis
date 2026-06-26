@@ -33,6 +33,16 @@ function getReferenceSelectionRank(
 	return referenceSelectionRanks.preferred;
 }
 
+function referenceMatchesPlannedSearch(
+	reference: DrawingReference,
+	search: PlannedProviderSearch
+): boolean {
+	return (
+		reference.taxonomy.primarySubject === search.seed.primarySubject &&
+		(search.seed.topic === undefined || reference.taxonomy.topic === search.seed.topic)
+	);
+}
+
 function hasEnoughPreferredSubjectCoverage(
 	candidates: Iterable<ReferenceCandidate>,
 	count: number,
@@ -87,20 +97,26 @@ export async function collectReferenceCandidates(
 		}
 
 		for (const reference of result.references) {
-			if (candidatesByReferenceId.has(reference.id)) {
+			if (
+				candidatesByReferenceId.has(reference.id) ||
+				!referenceMatchesPlannedSearch(reference, search)
+			) {
 				continue;
 			}
 
 			const referenceWithSelectionContext = {
 				...reference,
-				selection: { ...reference.selection, seedId: reference.selection?.seedId ?? search.seed.id }
+				selection: {
+					...reference.selection,
+					seed: reference.selection?.seed ?? search.request.seed
+				}
 			};
 
 			candidatesByReferenceId.set(reference.id, {
 				reference: referenceWithSelectionContext,
 				rank: getReferenceSelectionRank(referenceWithSelectionContext, avoidancePolicy),
 				order,
-				seedId: search.seed.id
+				seed: search.request.seed
 			});
 			order += 1;
 		}

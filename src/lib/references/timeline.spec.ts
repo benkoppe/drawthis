@@ -21,11 +21,11 @@ function makeReference(id: string): DrawingReference {
 		title: `Reference ${id}`,
 		taxonomy: {
 			primarySubject: 'objects',
-			topic: 'still-life-groups',
-			sceneTypes: ['still-life']
+			topic: 'still-life-groups'
 		},
 		training: {
-			focuses: ['shape']
+			focuses: ['shape'],
+			sceneTypes: ['still-life']
 		},
 		image: {
 			url: `https://example.com/${id}.jpg`,

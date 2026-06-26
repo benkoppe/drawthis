@@ -216,11 +216,11 @@ function toDrawingReference(
 
 	const taxonomy: DrawingReference['taxonomy'] = {
 		primarySubject,
-		secondarySubjects: request.secondarySubjects,
-		sceneTypes: request.sceneTypes
+		secondarySubjects: request.secondarySubjects
 	};
 	const training: DrawingReference['training'] = {
 		focuses: request.practiceFocuses,
+		sceneTypes: request.sceneTypes,
 		complexity: request.complexity
 	};
 
@@ -238,7 +238,7 @@ function toDrawingReference(
 		title: image.title ?? 'Untitled Openverse image',
 		taxonomy,
 		training,
-		selection: request.seedId === undefined ? undefined : { seedId: request.seedId },
+		selection: request.seed === undefined ? undefined : { seed: request.seed },
 		image: referenceImage,
 		attribution
 	};

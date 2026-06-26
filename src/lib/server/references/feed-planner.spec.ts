@@ -107,12 +107,20 @@ describe('createReferenceFeedPlan', () => {
 			primarySubject: 'objects',
 			count: 3,
 			query: 'cluttered desk objects',
-			seedId: 'objects-desk'
+			seed: {
+				id: 'objects-desk',
+				label: 'Desk objects',
+				query: 'cluttered desk objects'
+			}
 		});
 		expect(plan.searches.find((search) => search.provider.id === 'local')?.request).toMatchObject({
 			primarySubject: 'objects',
 			count: 3,
-			seedId: 'objects-desk'
+			seed: {
+				id: 'objects-desk',
+				label: 'Desk objects',
+				query: 'cluttered desk objects'
+			}
 		});
 		expect(
 			plan.searches.find((search) => search.provider.id === 'local')?.request.query

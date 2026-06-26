@@ -2,8 +2,8 @@ import { expect, test, type Browser, type Page } from '@playwright/test';
 
 const referenceFeedSeedCookieName = 'drawthis_feed_seed';
 const appUrl = 'http://127.0.0.1:4173';
-const referenceTimelineSessionStorageKey = 'drawthis:reference-timeline';
-const referenceHistoryDatabaseName = 'drawthis-reference-history-v2';
+const referenceTimelineSessionStorageKey = 'drawthis:reference-timeline:v2';
+const referenceHistoryDatabaseName = 'drawthis-reference-history-v3';
 const referenceHistoryDatabaseVersion = 1;
 const referenceHistoryEntryStoreName = 'referenceHistoryEntries';
 

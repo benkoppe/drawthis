@@ -5,6 +5,8 @@ import {
 	createReferenceCategoryFilterSelection,
 	getReferenceSubjectSelectionKey,
 	getReferenceTopicSelectionKey,
+	isReferenceInCategorySelection,
+	isReferenceTopicForSubject,
 	normalizeReferenceSubjects,
 	normalizeReferenceTopics,
 	parseReferenceCategoryFilterSelection,
@@ -79,7 +81,7 @@ describe('reference taxonomy helpers', () => {
 		expect(
 			parseReferenceCategoryFilterSelection(
 				JSON.stringify({
-					version: 1,
+					version: 2,
 					subjects: ['nature', 'removed-subject', 'places'],
 					topics: ['plants-flowers', 'removed-topic', 'rooms']
 				})
@@ -94,13 +96,32 @@ describe('reference taxonomy helpers', () => {
 		expect(parseReferenceCategoryFilterSelection('not json')).toBeUndefined();
 		expect(
 			parseReferenceCategoryFilterSelection(
-				JSON.stringify({ version: 2, subjects: [], topics: [] })
+				JSON.stringify({ version: 3, subjects: [], topics: [] })
 			)
 		).toBeUndefined();
 		expect(
 			parseReferenceCategoryFilterSelection(
-				JSON.stringify({ version: 1, subjects: 'nature', topics: [] })
+				JSON.stringify({ version: 2, subjects: 'nature', topics: [] })
 			)
 		).toBeUndefined();
+	});
+
+	it('checks subject/topic relationships and reference category membership', () => {
+		expect(isReferenceTopicForSubject('rooms', 'places')).toBe(true);
+		expect(isReferenceTopicForSubject('rooms', 'people')).toBe(false);
+		expect(
+			isReferenceInCategorySelection(
+				{ taxonomy: { primarySubject: 'places', topic: 'rooms' } },
+				['places'],
+				['rooms']
+			)
+		).toBe(true);
+		expect(
+			isReferenceInCategorySelection(
+				{ taxonomy: { primarySubject: 'places', topic: 'rooms' } },
+				['places'],
+				['streets-sidewalks']
+			)
+		).toBe(false);
 	});
 });

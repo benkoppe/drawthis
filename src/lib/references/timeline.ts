@@ -1,11 +1,11 @@
 import { openDB, type DBSchema, type IDBPDatabase } from 'idb';
 import type { DrawingReference } from './types';
 
-export const referenceTimelineSessionStorageKey = 'drawthis:reference-timeline';
+export const referenceTimelineSessionStorageKey = 'drawthis:reference-timeline:v2';
 export const maxReferenceTabTimelineEntries = 200;
 export const maxReferenceHistoryEntries = 500;
 
-const referenceHistoryDatabaseName = 'drawthis-reference-history-v2';
+const referenceHistoryDatabaseName = 'drawthis-reference-history-v3';
 const referenceHistoryDatabaseVersion = 1;
 const referenceHistoryEntryStoreName = 'referenceHistoryEntries';
 const referenceHistoryMetaStoreName = 'referenceHistoryMeta';

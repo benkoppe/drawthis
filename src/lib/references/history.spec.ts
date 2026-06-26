@@ -9,6 +9,24 @@ import {
 } from './history';
 import { describe, expect, it } from 'vitest';
 
+const placesContext = {
+	id: 'pexels:1',
+	taxonomy: { primarySubject: 'places' as const },
+	providerId: 'pexels'
+};
+
+const natureContext = {
+	id: 'openverse:2',
+	taxonomy: { primarySubject: 'nature' as const, topic: 'plants-flowers' as const },
+	providerId: 'openverse',
+	selection: { seedId: 'nature-potted-plant' },
+	training: {
+		sceneTypes: ['interior' as const],
+		focuses: ['shape' as const],
+		complexity: 'moderate' as const
+	}
+};
+
 describe('reference history helpers', () => {
 	it('round-trips serialized recent reference IDs', () => {
 		const serialized = serializeRecentReferenceIds(['pexels:1', 'openverse:2']);
@@ -46,18 +64,7 @@ describe('reference history helpers', () => {
 	});
 
 	it('round-trips serialized recent reference contexts', () => {
-		const contexts = [
-			{ id: 'pexels:1', primarySubject: 'places' as const, providerId: 'pexels' },
-			{
-				id: 'openverse:2',
-				primarySubject: 'nature' as const,
-				topic: 'plants-flowers' as const,
-				providerId: 'openverse',
-				seedId: 'nature-potted-plant',
-				sceneTypes: ['interior' as const],
-				practiceFocuses: ['shape' as const]
-			}
-		];
+		const contexts = [placesContext, natureContext];
 
 		expect(parseRecentReferenceContexts(serializeRecentReferenceContexts(contexts))).toEqual(
 			contexts
@@ -69,27 +76,28 @@ describe('reference history helpers', () => {
 			parseRecentReferenceContexts(
 				encodeURIComponent(
 					JSON.stringify([
-						{ id: 'pexels:1', primarySubject: 'places' },
-						{ id: '', primarySubject: 'places' },
-						{ id: 'pexels:2', primarySubject: 'unsupported' },
+						{ id: 'pexels:1', taxonomy: { primarySubject: 'places' } },
+						{ id: '', taxonomy: { primarySubject: 'places' } },
+						{ id: 'pexels:2', taxonomy: { primarySubject: 'unsupported' } },
+						{ id: 'pexels:3', primarySubject: 'places' },
 						42
 					])
 				)
 			)
-		).toEqual([{ id: 'pexels:1', primarySubject: 'places' }]);
+		).toEqual([{ id: 'pexels:1', taxonomy: { primarySubject: 'places' } }]);
 	});
 
 	it('dedupes reference contexts and trims them to the context history limit', () => {
 		const contexts = Array.from({ length: maxRecentReferenceContexts + 5 }, (_, index) => ({
 			id: String(index),
-			primarySubject: 'places' as const
+			taxonomy: { primarySubject: 'places' as const }
 		}));
 
 		expect(
-			mergeRecentReferenceContexts(contexts, [{ id: '10', primarySubject: 'nature' }])
+			mergeRecentReferenceContexts(contexts, [{ id: '10', taxonomy: { primarySubject: 'nature' } }])
 		).toEqual([
 			...contexts.slice(5).filter(({ id }) => id !== '10'),
-			{ id: '10', primarySubject: 'nature' }
+			{ id: '10', taxonomy: { primarySubject: 'nature' } }
 		]);
 	});
 });

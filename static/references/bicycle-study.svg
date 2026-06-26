@@ -1,0 +1,19 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 800 600" role="img" aria-labelledby="title desc">
+	<title id="title">Bicycle Study</title>
+	<desc id="desc">Simple line drawing of a bicycle for drawing practice.</desc>
+	<rect width="800" height="600" fill="#f7f7f4"/>
+	<g fill="none" stroke="#222" stroke-width="10" stroke-linecap="round" stroke-linejoin="round">
+		<circle cx="230" cy="390" r="115"/>
+		<circle cx="570" cy="390" r="115"/>
+		<path d="M230 390h170l-92-150"/>
+		<path d="M400 390l92-150 78 150"/>
+		<path d="M308 240h185"/>
+		<path d="M330 212h-64"/>
+		<path d="M492 240l46-76"/>
+		<path d="M538 164h82"/>
+		<path d="M400 390l-70-178" opacity="0.35"/>
+		<path d="M230 390l100-178" opacity="0.35"/>
+		<path d="M570 390l-32-226" opacity="0.35"/>
+		<path d="M155 515h505"/>
+	</g>
+</svg>

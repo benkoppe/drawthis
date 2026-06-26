@@ -1,19 +1,51 @@
 export { requestReferenceFeed, type RequestReferenceFeedOptions } from './api';
 export {
-	areReferenceCategorySelectionsEqual,
-	createReferenceCategoryFilterSelection,
+	createReferenceCategorySelectionSnapshot,
+	filterReferencesByCategorySelectionSnapshot,
 	getReferenceCategorySelectionKey,
-	isReferenceCategory,
-	normalizeReferenceCategories,
+	isReferenceInCategorySelectionSnapshot,
+	type ReferenceCategorySelectionSnapshot
+} from './category-selection';
+export { formatReferenceFeedErrorMessage } from './errors';
+export {
+	areReferenceSubjectSelectionsEqual,
+	areReferenceTopicSelectionsEqual,
+	createReferenceCategoryFilterSelection,
+	getReferenceSubjectSelectionKey,
+	getReferenceSubjectTopics,
+	getReferenceTopicSelectionKey,
+	getReferenceTopicSubject,
+	isReferenceInCategorySelection,
+	isReferencePracticeFocus,
+	isReferenceSceneType,
+	isReferenceSubject,
+	isReferenceTaxonomyInCategorySelection,
+	isReferenceTopic,
+	isReferenceTopicForSubject,
+	isReferenceVisualComplexity,
+	normalizeReferencePracticeFocuses,
+	normalizeReferenceSceneTypes,
+	normalizeReferenceSubjects,
+	normalizeReferenceTopics,
 	parseReferenceCategoryFilterSelection,
-	referenceCategories,
 	referenceCategoryFilterStorageKey,
-	referenceCategoryLabels,
+	referencePracticeFocuses,
+	referenceSceneTypes,
+	referenceSubjectLabels,
+	referenceSubjects,
+	referenceTopicLabels,
+	referenceTopicSubjects,
+	referenceTopics,
+	referenceTopicsBySubject,
+	referenceVisualComplexities,
 	serializeReferenceCategoryFilterSelection,
-	type ReferenceCategory,
-	type ReferenceCategoryFilterMode,
-	type ReferenceCategoryFilterSelection
-} from './categories';
+	type ReferenceCategoryFilterSelection,
+	type ReferencePracticeFocus,
+	type ReferenceSceneType,
+	type ReferenceSubjectId,
+	type ReferenceTopicId,
+	type ReferenceVisualComplexity
+} from './taxonomy';
 export {
 	defaultReferenceFeedCount,
 	imagePreloadAheadCount,
@@ -27,6 +59,13 @@ export {
 	trimRecentReferenceIds
 } from './feed';
 export {
+	compactReferenceFeedContextItem,
+	parseReferenceFeedContextItemLike,
+	parseReferenceTaxonomyLike,
+	parseReferenceTrainingMetadataLike,
+	toReferenceFeedContextItem
+} from './context';
+export {
 	mergeRecentReferenceContexts,
 	mergeRecentReferenceIds,
 	parseRecentReferenceContexts,
@@ -36,8 +75,7 @@ export {
 	referenceHistoryCookieName,
 	referenceHistoryStorageKey,
 	serializeRecentReferenceContexts,
-	serializeRecentReferenceIds,
-	toReferenceFeedContextItem
+	serializeRecentReferenceIds
 } from './history';
 export {
 	appendReferenceHistoryEntry,
@@ -64,5 +102,9 @@ export type {
 	ReferenceFeedRequest,
 	ReferenceFeedResponse,
 	ReferenceOrientation,
-	ReferenceProviderId
+	ReferenceProviderId,
+	ReferenceSeedMetadata,
+	ReferenceSelectionMetadata,
+	ReferenceTaxonomy,
+	ReferenceTrainingMetadata
 } from './types';

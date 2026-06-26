@@ -64,8 +64,13 @@ describe('createPexelsReferenceProvider', () => {
 
 		const result = await provider.search({
 			count: 1,
-			category: 'interior',
+			primarySubject: 'places',
+			topic: 'kitchens-workspaces',
 			query: 'cluttered desk',
+			sceneTypes: ['interior', 'workplace'],
+			focuses: ['perspective', 'composition'],
+			complexity: 'dense',
+			seed: { id: 'places-cluttered-desk', label: 'Cluttered desk', query: 'cluttered desk' },
 			orientation: 'landscape'
 		});
 
@@ -92,7 +97,19 @@ describe('createPexelsReferenceProvider', () => {
 						referenceId: '2014422'
 					},
 					title: 'Brown rocks during golden hour',
-					category: 'interior',
+					taxonomy: { primarySubject: 'places', topic: 'kitchens-workspaces' },
+					training: {
+						sceneTypes: ['interior', 'workplace'],
+						focuses: ['perspective', 'composition'],
+						complexity: 'dense'
+					},
+					selection: {
+						seed: {
+							id: 'places-cluttered-desk',
+							label: 'Cluttered desk',
+							query: 'cluttered desk'
+						}
+					},
 					image: {
 						url: 'https://images.pexels.com/photos/2014422/pexels-photo-2014422.jpeg?auto=compress&cs=tinysrgb&dpr=2&h=650&w=940',
 						alt: 'Brown rocks during golden hour',
@@ -134,7 +151,7 @@ describe('createPexelsReferenceProvider', () => {
 
 		const result = await provider.search({
 			count: 5,
-			category: 'figure-study',
+			primarySubject: 'people',
 			query: 'standing figure pose',
 			orientation: 'portrait',
 			cursor: '3'
@@ -160,7 +177,7 @@ describe('createPexelsReferenceProvider', () => {
 
 		await provider.search({
 			count: 2,
-			category: 'still-life',
+			primarySubject: 'objects',
 			query: 'mug still life',
 			orientation: 'square'
 		});
@@ -191,7 +208,7 @@ describe('createPexelsReferenceProvider', () => {
 
 		const result = await provider.search({
 			count: 10,
-			category: 'plant',
+			primarySubject: 'nature',
 			query: 'potted plant',
 			orientation: 'any'
 		});
@@ -202,7 +219,7 @@ describe('createPexelsReferenceProvider', () => {
 		expect(result.nextCursor).toBe('3');
 	});
 
-	it('skips incomplete Pexels photo results', async () => {
+	it('skips incomplete or unusably small Pexels photo results', async () => {
 		const provider = createPexelsReferenceProvider({
 			apiBaseUrl: 'https://api.pexels.com/v1',
 			apiKey: 'pexels-api-key',
@@ -211,22 +228,29 @@ describe('createPexelsReferenceProvider', () => {
 					makePexelsResponse({
 						photos: [
 							{ id: 1, url: 'https://www.pexels.com/photo/1/' },
-							{ id: 2, src: { large: 'https://images.pexels.com/photos/2/photo.jpeg' } }
+							{ id: 2, src: { large: 'https://images.pexels.com/photos/2/photo.jpeg' } },
+							{
+								id: 3,
+								url: 'https://www.pexels.com/photo/3/',
+								width: 120,
+								height: 120,
+								src: { large: 'https://images.pexels.com/photos/3/photo.jpeg' }
+							}
 						]
 					})
 				)
 		});
 
 		const result = await provider.search({
-			count: 2,
-			category: 'still-life',
+			count: 3,
+			primarySubject: 'objects',
 			query: 'tools on table'
 		});
 
 		expect(result.references).toEqual([]);
 	});
 
-	it('requires the feed planner to provide the reference category and generated query', async () => {
+	it('requires the feed planner to provide the reference subject and generated query', async () => {
 		const provider = createPexelsReferenceProvider({
 			apiBaseUrl: 'https://api.pexels.com/v1',
 			apiKey: 'pexels-api-key',
@@ -234,9 +258,9 @@ describe('createPexelsReferenceProvider', () => {
 		});
 
 		await expect(provider.search({ count: 1, query: 'potted plant' })).rejects.toThrow(
-			'Pexels search requires a planned reference category'
+			'Pexels search requires a planned reference subject'
 		);
-		await expect(provider.search({ count: 1, category: 'plant' })).rejects.toThrow(
+		await expect(provider.search({ count: 1, primarySubject: 'nature' })).rejects.toThrow(
 			'Pexels search requires a generated query'
 		);
 	});
@@ -249,7 +273,7 @@ describe('createPexelsReferenceProvider', () => {
 		});
 
 		await expect(
-			provider.search({ count: 1, category: 'plant', query: 'potted plant' })
+			provider.search({ count: 1, primarySubject: 'nature', query: 'potted plant' })
 		).rejects.toThrow('Pexels search failed with status 429');
 	});
 });

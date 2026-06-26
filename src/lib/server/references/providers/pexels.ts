@@ -1,11 +1,13 @@
-import {
-	referenceCategories,
-	type DrawingReference,
-	type ReferenceCategory
-} from '$lib/references';
+import { referenceSubjects, type DrawingReference } from '$lib/references';
 import type { PexelsProviderConfig } from '$lib/server/config';
+import { isProviderImageUsable } from '../provider-image-quality';
 import { parseRetryAfterSeconds, ReferenceProviderHttpError } from '../provider-error';
 import type { ProviderSearchRequest, ProviderSearchResult, ReferenceProvider } from '../provider';
+import {
+	createReferenceSelectionFromProviderRequest,
+	createReferenceTaxonomyFromProviderRequest,
+	createReferenceTrainingFromProviderRequest
+} from '../reference-metadata';
 import {
 	getNonEmptyString,
 	getPositiveInteger,
@@ -110,6 +112,13 @@ function parsePexelsPhoto(value: unknown): PexelsPhoto | undefined {
 		return undefined;
 	}
 
+	const width = getPositiveNumber(value, 'width');
+	const height = getPositiveNumber(value, 'height');
+
+	if (!isProviderImageUsable({ url: imageUrl, width, height })) {
+		return undefined;
+	}
+
 	return {
 		id,
 		url,
@@ -117,8 +126,8 @@ function parsePexelsPhoto(value: unknown): PexelsPhoto | undefined {
 		photographer: getNonEmptyString(value, 'photographer'),
 		photographerUrl: getNonEmptyString(value, 'photographer_url'),
 		alt: getNonEmptyString(value, 'alt'),
-		width: getPositiveNumber(value, 'width'),
-		height: getPositiveNumber(value, 'height')
+		width,
+		height
 	};
 }
 
@@ -193,7 +202,10 @@ function makeAltText(photo: PexelsPhoto): string {
 	return photo.alt ?? makeTitle(photo);
 }
 
-function toDrawingReference(photo: PexelsPhoto, category: ReferenceCategory): DrawingReference {
+function toDrawingReference(photo: PexelsPhoto, request: ProviderSearchRequest): DrawingReference {
+	const taxonomy = createReferenceTaxonomyFromProviderRequest(request);
+	const training = createReferenceTrainingFromProviderRequest(request);
+	const selection = createReferenceSelectionFromProviderRequest(request);
 	const referenceImage: DrawingReference['image'] = {
 		url: photo.imageUrl,
 		alt: makeAltText(photo)
@@ -230,7 +242,9 @@ function toDrawingReference(photo: PexelsPhoto, category: ReferenceCategory): Dr
 			referenceId: photo.id
 		},
 		title: makeTitle(photo),
-		category,
+		taxonomy,
+		...(training === undefined ? {} : { training }),
+		...(selection === undefined ? {} : { selection }),
 		image: referenceImage,
 		attribution
 	};
@@ -260,10 +274,8 @@ async function searchPexels(
 	fetchFunction: FetchFunction,
 	request: ProviderSearchRequest
 ): Promise<ProviderSearchResult> {
-	const category = request.category;
-
-	if (category === undefined) {
-		throw new Error('Pexels search requires a planned reference category');
+	if (request.primarySubject === undefined) {
+		throw new Error('Pexels search requires a planned reference subject');
 	}
 
 	const response = await fetchFunction(buildPexelsSearchUrl(config, request), {
@@ -284,7 +296,7 @@ async function searchPexels(
 	const parsedResponse = parsePexelsSearchResponse(body);
 
 	return {
-		references: parsedResponse.photos.map((photo) => toDrawingReference(photo, category)),
+		references: parsedResponse.photos.map((photo) => toDrawingReference(photo, request)),
 		nextCursor: getNextCursor(parsedResponse),
 		cachePolicy: {
 			metadataTtlSeconds: pexelsMetadataTtlSeconds,
@@ -302,7 +314,7 @@ export function createPexelsReferenceProvider(
 		id: pexelsProviderId,
 		name: pexelsProviderName,
 		capabilities: {
-			categories: referenceCategories,
+			subjects: referenceSubjects,
 			supportsSearch: true,
 			supportsPagination: true,
 			supportsOrientation: true,

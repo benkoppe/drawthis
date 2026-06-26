@@ -1,22 +1,29 @@
 import {
-	isReferenceCategory,
-	normalizeReferenceCategories,
-	referenceCategories,
-	type ReferenceCategory,
-	type ReferenceFeedRequest
+	isReferenceSubject,
+	isReferenceTopic,
+	normalizeReferenceSubjects,
+	normalizeReferenceTopics,
+	referenceSubjects,
+	referenceTopics,
+	type ReferenceFeedRequest,
+	type ReferenceSubjectId,
+	type ReferenceTopicId
 } from '$lib/references';
-import type { ProviderSearchRequest, ReferenceProvider } from './provider';
+import { createReferencePlanningContext } from './feed-planning-context';
+import { orderSeedsByBalancedTaxonomy } from './feed-seed-ordering';
 import {
 	defaultReferenceFeedPolicy,
 	type ReferenceFeedPolicy,
 	type ReferenceProviderPaginationPolicy,
-	type ReferenceSubjectSeed
+	type ReferenceSeedWeightPolicy
 } from './feed-policy';
+import type { ProviderSearchRequest, ReferenceProvider } from './provider';
+import { makeReferenceSeedMetadata, type ReferenceSearchSeed } from './reference-seed';
+import { weightedShuffle } from './weighted-selection';
 
 export interface PlannedProviderSearch {
 	provider: ReferenceProvider;
-	category: ReferenceCategory;
-	seed: ReferenceSubjectSeed;
+	seed: ReferenceSearchSeed;
 	request: ProviderSearchRequest;
 }
 
@@ -31,64 +38,53 @@ export interface CreateReferenceFeedPlanOptions {
 	random?: () => number;
 }
 
-interface WeightedItem<T> {
-	item: T;
-	weight: number;
-}
+function getEnabledSubjects(request: ReferenceFeedRequest): ReferenceSubjectId[] | undefined {
+	const enabledSubjects = request.preferences?.enabledSubjects;
 
-const defaultWeight = 1;
-
-function normalizeWeight(weight: number | undefined): number {
-	if (weight === undefined) {
-		return defaultWeight;
-	}
-
-	return weight > 0 ? weight : 0;
-}
-
-function weightedShuffle<T>(items: readonly WeightedItem<T>[], random: () => number): T[] {
-	const remaining = items.filter(({ weight }) => weight > 0);
-	const shuffled: T[] = [];
-
-	while (remaining.length > 0) {
-		const totalWeight = remaining.reduce((total, { weight }) => total + weight, 0);
-		let target = random() * totalWeight;
-		let selectedIndex = remaining.length - 1;
-
-		for (let index = 0; index < remaining.length; index += 1) {
-			target -= remaining[index].weight;
-
-			if (target < 0) {
-				selectedIndex = index;
-				break;
-			}
-		}
-
-		const [selected] = remaining.splice(selectedIndex, 1);
-		shuffled.push(selected.item);
-	}
-
-	return shuffled;
-}
-
-function getEnabledCategories(request: ReferenceFeedRequest): ReferenceCategory[] | undefined {
-	const enabledCategories = request.preferences?.enabledCategories;
-
-	if (enabledCategories === undefined) {
+	if (enabledSubjects === undefined) {
 		return undefined;
 	}
 
-	if (enabledCategories.length === 0) {
-		throw new Error('enabledCategories must include at least one category');
+	if (enabledSubjects.length === 0) {
+		throw new Error('enabledSubjects must include at least one subject');
 	}
 
-	for (const category of enabledCategories) {
-		if (!isReferenceCategory(category)) {
-			throw new Error('enabledCategories contains an unsupported category');
+	for (const subject of enabledSubjects) {
+		if (!isReferenceSubject(subject)) {
+			throw new Error('enabledSubjects contains an unsupported subject');
 		}
 	}
 
-	return normalizeReferenceCategories(enabledCategories);
+	return normalizeReferenceSubjects(enabledSubjects);
+}
+
+function getEnabledTopics(
+	request: ReferenceFeedRequest,
+	enabledSubjects: readonly ReferenceSubjectId[]
+): ReferenceTopicId[] | undefined {
+	const enabledTopics = request.preferences?.enabledTopics;
+
+	if (enabledTopics === undefined) {
+		return undefined;
+	}
+
+	if (enabledTopics.length === 0) {
+		throw new Error('enabledTopics must include at least one topic');
+	}
+
+	for (const topic of enabledTopics) {
+		if (!isReferenceTopic(topic)) {
+			throw new Error('enabledTopics contains an unsupported topic');
+		}
+	}
+
+	const normalizedTopics = normalizeReferenceTopics(enabledTopics, enabledSubjects);
+
+	if (normalizedTopics.length === 0) {
+		throw new Error('enabledTopics must include at least one topic for an enabled subject');
+	}
+
+	return normalizedTopics;
 }
 
 function getRandomInitialCursorPage(
@@ -113,13 +109,36 @@ function getRandomInitialCursorPage(
 
 function makeProviderSearchRequest(
 	provider: ReferenceProvider,
-	category: ReferenceCategory,
-	seed: ReferenceSubjectSeed,
+	seed: ReferenceSearchSeed,
 	count: number,
 	policy: ReferenceFeedPolicy,
 	random: () => number
 ): ProviderSearchRequest {
-	const request: ProviderSearchRequest = { count, category };
+	const request: ProviderSearchRequest = {
+		count,
+		primarySubject: seed.primarySubject,
+		seed: makeReferenceSeedMetadata(seed)
+	};
+
+	if (seed.topic !== undefined) {
+		request.topic = seed.topic;
+	}
+
+	if (seed.secondarySubjects !== undefined) {
+		request.secondarySubjects = seed.secondarySubjects;
+	}
+
+	if (seed.sceneTypes !== undefined) {
+		request.sceneTypes = seed.sceneTypes;
+	}
+
+	if (seed.focuses !== undefined) {
+		request.focuses = seed.focuses;
+	}
+
+	if (seed.complexity !== undefined) {
+		request.complexity = seed.complexity;
+	}
 
 	if (provider.capabilities.supportsSearch) {
 		request.query = seed.query;
@@ -143,18 +162,19 @@ function makeProviderSearchRequest(
 function makeSearchKey(provider: ReferenceProvider, request: ProviderSearchRequest): string {
 	return [
 		provider.id,
-		request.category ?? '',
+		request.primarySubject ?? '',
+		request.topic ?? '',
 		request.query ?? '',
 		request.orientation ?? '',
 		request.cursor ?? ''
 	].join('\u0000');
 }
 
-function providerSupportsCategory(
+function providerSupportsSubject(
 	provider: ReferenceProvider,
-	category: ReferenceCategory
+	subject: ReferenceSubjectId
 ): boolean {
-	return provider.capabilities.categories.includes(category);
+	return provider.capabilities.subjects.includes(subject);
 }
 
 function orderCompatibleProviders(
@@ -169,10 +189,44 @@ function orderCompatibleProviders(
 	return weightedShuffle(
 		providers.map((provider) => ({
 			item: provider,
-			weight: normalizeWeight(policy.providerWeights?.[provider.id])
+			weight: policy.providerWeights?.[provider.id]
 		})),
 		random
 	);
+}
+
+function multiplyWeight(weight: number, multiplier: number | undefined): number {
+	return multiplier === undefined ? weight : weight * multiplier;
+}
+
+function getSeedPolicyWeight(
+	seed: ReferenceSearchSeed,
+	policy: ReferenceSeedWeightPolicy | undefined
+): number | undefined {
+	if (policy === undefined && seed.weight === undefined) {
+		return undefined;
+	}
+
+	let weight = seed.weight ?? 1;
+
+	for (const coverageTag of seed.coverageTags ?? []) {
+		weight = multiplyWeight(weight, policy?.coverageTagMultipliers?.[coverageTag]);
+	}
+
+	for (const sceneType of seed.sceneTypes ?? []) {
+		weight = multiplyWeight(weight, policy?.sceneTypeMultipliers?.[sceneType]);
+	}
+
+	if (seed.complexity !== undefined) {
+		weight = multiplyWeight(weight, policy?.complexityMultipliers?.[seed.complexity]);
+	}
+
+	return weight;
+}
+
+interface PlannedSeedProviderQueue {
+	seed: ReferenceSearchSeed;
+	providers: ReferenceProvider[];
 }
 
 export function createReferenceFeedPlan(
@@ -181,76 +235,60 @@ export function createReferenceFeedPlan(
 ): ReferenceFeedPlan {
 	const policy = options.policy ?? defaultReferenceFeedPolicy;
 	const random = options.random ?? Math.random;
-	const enabledCategories = getEnabledCategories(request);
-	const enabledCategorySet = new Set(enabledCategories ?? referenceCategories);
+	const enabledSubjects = getEnabledSubjects(request) ?? referenceSubjects;
+	const enabledTopics = getEnabledTopics(request, enabledSubjects) ?? referenceTopics;
+	const enabledSubjectSet = new Set(enabledSubjects);
+	const enabledTopicSet = new Set(enabledTopics);
 	const selectedSearchKeys = new Set<string>();
 	const searches: PlannedProviderSearch[] = [];
-	const categoryPolicies = weightedShuffle(
-		policy.categories
-			.filter(
-				(categoryPolicy) =>
-					enabledCategorySet.has(categoryPolicy.category) && categoryPolicy.subjectSeeds.length > 0
-			)
-			.map((categoryPolicy) => ({
-				item: categoryPolicy,
-				weight: normalizeWeight(categoryPolicy.weight)
-			})),
-		random
+	const seeds = orderSeedsByBalancedTaxonomy(
+		policy.seeds.filter(
+			(seed) =>
+				enabledSubjectSet.has(seed.primarySubject) &&
+				(seed.topic === undefined || enabledTopicSet.has(seed.topic))
+		),
+		createReferencePlanningContext(request),
+		random,
+		(seed) => getSeedPolicyWeight(seed, policy.seedWeights)
 	);
-
-	const searchesByCategory = categoryPolicies.map((categoryPolicy) => {
-		const compatibleProviders = orderCompatibleProviders(
+	const seedProviderQueues: PlannedSeedProviderQueue[] = seeds.map((seed) => ({
+		seed,
+		providers: orderCompatibleProviders(
 			options.providers.filter((provider) =>
-				providerSupportsCategory(provider, categoryPolicy.category)
+				providerSupportsSubject(provider, seed.primarySubject)
 			),
 			policy,
 			random
-		);
-		const seeds = weightedShuffle(
-			categoryPolicy.subjectSeeds.map((seed) => ({
-				item: seed,
-				weight: normalizeWeight(seed.weight)
-			})),
-			random
-		);
-		const categorySearches: PlannedProviderSearch[] = [];
+		)
+	}));
 
-		for (const seed of seeds) {
-			for (const provider of compatibleProviders) {
-				const providerRequest = makeProviderSearchRequest(
-					provider,
-					categoryPolicy.category,
-					seed,
-					options.searchCount,
-					policy,
-					random
-				);
-				const searchKey = makeSearchKey(provider, providerRequest);
+	while (seedProviderQueues.some((queue) => queue.providers.length > 0)) {
+		for (const queue of seedProviderQueues) {
+			const provider = queue.providers.shift();
 
-				if (selectedSearchKeys.has(searchKey)) {
-					continue;
-				}
-
-				selectedSearchKeys.add(searchKey);
-				categorySearches.push({
-					provider,
-					category: categoryPolicy.category,
-					seed,
-					request: providerRequest
-				});
+			if (provider === undefined) {
+				continue;
 			}
-		}
 
-		return categorySearches;
-	});
+			const providerRequest = makeProviderSearchRequest(
+				provider,
+				queue.seed,
+				options.searchCount,
+				policy,
+				random
+			);
+			const searchKey = makeSearchKey(provider, providerRequest);
 
-	while (searchesByCategory.some((categorySearches) => categorySearches.length > 0)) {
-		for (const categorySearches of searchesByCategory) {
-			const search = categorySearches.shift();
-
-			if (search !== undefined) {
-				searches.push(search);
+			if (selectedSearchKeys.has(searchKey)) {
+				continue;
 			}
+
+			selectedSearchKeys.add(searchKey);
+			searches.push({
+				provider,
+				seed: queue.seed,
+				request: providerRequest
+			});
 		}
 	}
 

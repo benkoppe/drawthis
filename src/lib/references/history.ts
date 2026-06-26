@@ -1,11 +1,11 @@
-import { isReferenceCategory } from './categories';
+import { parseReferenceFeedContextItemLike } from './context';
 import { maxRecentReferenceContexts, trimRecentReferenceIds } from './feed';
-import type { DrawingReference, ReferenceFeedContextItem } from './types';
+import type { ReferenceFeedContextItem } from './types';
 
-export const referenceHistoryCookieName = 'drawthis_recent_references';
-export const referenceContextHistoryCookieName = 'drawthis_recent_reference_contexts';
-export const referenceHistoryStorageKey = 'drawthis:recent-references';
-export const referenceContextHistoryStorageKey = 'drawthis:recent-reference-contexts';
+export const referenceHistoryCookieName = 'drawthis_recent_reference_ids_v3';
+export const referenceContextHistoryCookieName = 'drawthis_recent_reference_contexts_v3';
+export const referenceHistoryStorageKey = 'drawthis:recent-reference-ids:v3';
+export const referenceContextHistoryStorageKey = 'drawthis:recent-reference-contexts:v3';
 
 function sanitizeReferenceIds(referenceIds: readonly unknown[]): string[] {
 	return referenceIds.flatMap((referenceId) => {
@@ -18,46 +18,13 @@ function sanitizeReferenceIds(referenceIds: readonly unknown[]): string[] {
 	});
 }
 
-function isRecord(value: unknown): value is Record<string, unknown> {
-	return value !== null && typeof value === 'object' && !Array.isArray(value);
-}
-
-export function toReferenceFeedContextItem(reference: DrawingReference): ReferenceFeedContextItem {
-	return {
-		id: reference.id,
-		category: reference.category,
-		providerId: reference.provider.id
-	};
-}
-
 function sanitizeReferenceContexts(
 	referenceContexts: readonly unknown[]
 ): ReferenceFeedContextItem[] {
 	return referenceContexts.flatMap((referenceContext) => {
-		if (!isRecord(referenceContext)) {
-			return [];
-		}
+		const parsedContext = parseReferenceFeedContextItemLike(referenceContext);
 
-		const id = typeof referenceContext.id === 'string' ? referenceContext.id.trim() : '';
-
-		if (id.length === 0 || !isReferenceCategory(referenceContext.category)) {
-			return [];
-		}
-
-		const sanitizedContext: ReferenceFeedContextItem = {
-			id,
-			category: referenceContext.category
-		};
-
-		if (typeof referenceContext.providerId === 'string' && referenceContext.providerId.length > 0) {
-			sanitizedContext.providerId = referenceContext.providerId;
-		}
-
-		if (typeof referenceContext.seedId === 'string' && referenceContext.seedId.length > 0) {
-			sanitizedContext.seedId = referenceContext.seedId;
-		}
-
-		return [sanitizedContext];
+		return parsedContext === undefined ? [] : [parsedContext];
 	});
 }
 

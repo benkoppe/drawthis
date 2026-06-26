@@ -9,6 +9,24 @@ import {
 } from './history';
 import { describe, expect, it } from 'vitest';
 
+const placesContext = {
+	id: 'pexels:1',
+	taxonomy: { primarySubject: 'places' as const },
+	providerId: 'pexels'
+};
+
+const natureContext = {
+	id: 'openverse:2',
+	taxonomy: { primarySubject: 'nature' as const, topic: 'plants-flowers' as const },
+	providerId: 'openverse',
+	selection: { seedId: 'nature-potted-plant' },
+	training: {
+		sceneTypes: ['interior' as const],
+		focuses: ['shape' as const],
+		complexity: 'moderate' as const
+	}
+};
+
 describe('reference history helpers', () => {
 	it('round-trips serialized recent reference IDs', () => {
 		const serialized = serializeRecentReferenceIds(['pexels:1', 'openverse:2']);
@@ -46,10 +64,7 @@ describe('reference history helpers', () => {
 	});
 
 	it('round-trips serialized recent reference contexts', () => {
-		const contexts = [
-			{ id: 'pexels:1', category: 'street' as const, providerId: 'pexels' },
-			{ id: 'openverse:2', category: 'plant' as const, providerId: 'openverse', seedId: 'plant' }
-		];
+		const contexts = [placesContext, natureContext];
 
 		expect(parseRecentReferenceContexts(serializeRecentReferenceContexts(contexts))).toEqual(
 			contexts
@@ -61,25 +76,28 @@ describe('reference history helpers', () => {
 			parseRecentReferenceContexts(
 				encodeURIComponent(
 					JSON.stringify([
-						{ id: 'pexels:1', category: 'street' },
-						{ id: '', category: 'street' },
-						{ id: 'pexels:2', category: 'unsupported' },
+						{ id: 'pexels:1', taxonomy: { primarySubject: 'places' } },
+						{ id: '', taxonomy: { primarySubject: 'places' } },
+						{ id: 'pexels:2', taxonomy: { primarySubject: 'unsupported' } },
+						{ id: 'pexels:3', primarySubject: 'places' },
 						42
 					])
 				)
 			)
-		).toEqual([{ id: 'pexels:1', category: 'street' }]);
+		).toEqual([{ id: 'pexels:1', taxonomy: { primarySubject: 'places' } }]);
 	});
 
 	it('dedupes reference contexts and trims them to the context history limit', () => {
 		const contexts = Array.from({ length: maxRecentReferenceContexts + 5 }, (_, index) => ({
 			id: String(index),
-			category: 'interior' as const
+			taxonomy: { primarySubject: 'places' as const }
 		}));
 
-		expect(mergeRecentReferenceContexts(contexts, [{ id: '10', category: 'plant' }])).toEqual([
+		expect(
+			mergeRecentReferenceContexts(contexts, [{ id: '10', taxonomy: { primarySubject: 'nature' } }])
+		).toEqual([
 			...contexts.slice(5).filter(({ id }) => id !== '10'),
-			{ id: '10', category: 'plant' }
+			{ id: '10', taxonomy: { primarySubject: 'nature' } }
 		]);
 	});
 });

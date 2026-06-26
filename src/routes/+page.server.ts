@@ -15,7 +15,6 @@ import {
 	writeRecentReferenceIdsCookie
 } from '$lib/server/references/history-cookie';
 import { createSeededRandom } from '$lib/server/references/seeded-random';
-import { error } from '@sveltejs/kit';
 import type { PageServerLoad } from './$types';
 
 export const load: PageServerLoad = async ({ cookies, platform }) => {
@@ -26,6 +25,7 @@ export const load: PageServerLoad = async ({ cookies, platform }) => {
 		recentReferenceContexts.map((reference) => reference.id)
 	);
 	const random = createSeededRandom(`initial:${feedSeed}:${recentReferenceIds.join('\0')}`);
+	let initialFeedErrorMessage: string | undefined;
 	const feed = await getReferenceFeed(
 		{
 			count: initialReferenceFeedCount,
@@ -35,7 +35,8 @@ export const load: PageServerLoad = async ({ cookies, platform }) => {
 		{ random, searchCache: createReferenceSearchCache(platform) }
 	).catch((cause: unknown) => {
 		if (isReferenceFeedUnavailableError(cause)) {
-			throw error(503, cause.message);
+			initialFeedErrorMessage = cause.message;
+			return { references: [] };
 		}
 
 		throw cause;
@@ -55,6 +56,7 @@ export const load: PageServerLoad = async ({ cookies, platform }) => {
 
 	return {
 		...feed,
+		initialFeedErrorMessage,
 		recentReferenceIds: updatedRecentReferenceIds,
 		recentReferences: updatedRecentReferenceContexts
 	};

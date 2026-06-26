@@ -1,11 +1,13 @@
-import {
-	referenceCategories,
-	type DrawingReference,
-	type ReferenceCategory
-} from '$lib/references';
+import { referenceSubjects, type DrawingReference } from '$lib/references';
 import type { OpenverseProviderConfig } from '$lib/server/config';
+import { isProviderImageUsable } from '../provider-image-quality';
 import { parseRetryAfterSeconds, ReferenceProviderHttpError } from '../provider-error';
 import type { ProviderSearchRequest, ProviderSearchResult, ReferenceProvider } from '../provider';
+import {
+	createReferenceSelectionFromProviderRequest,
+	createReferenceTaxonomyFromProviderRequest,
+	createReferenceTrainingFromProviderRequest
+} from '../reference-metadata';
 import {
 	getBoolean,
 	getNonEmptyString,
@@ -62,6 +64,13 @@ function parseOpenverseImage(value: unknown): OpenverseImage | undefined {
 		return undefined;
 	}
 
+	const width = getPositiveNumber(value, 'width');
+	const height = getPositiveNumber(value, 'height');
+
+	if (!isProviderImageUsable({ url: imageUrl, width, height })) {
+		return undefined;
+	}
+
 	return {
 		id,
 		foreignLandingUrl,
@@ -73,8 +82,8 @@ function parseOpenverseImage(value: unknown): OpenverseImage | undefined {
 		licenseVersion: getNonEmptyString(value, 'license_version'),
 		licenseUrl: getNonEmptyString(value, 'license_url'),
 		attribution: getNonEmptyString(value, 'attribution'),
-		width: getPositiveNumber(value, 'width'),
-		height: getPositiveNumber(value, 'height')
+		width,
+		height
 	};
 }
 
@@ -173,7 +182,13 @@ function makeAltText(image: OpenverseImage): string {
 	return image.title ?? 'Openverse drawing reference image';
 }
 
-function toDrawingReference(image: OpenverseImage, category: ReferenceCategory): DrawingReference {
+function toDrawingReference(
+	image: OpenverseImage,
+	request: ProviderSearchRequest
+): DrawingReference {
+	const taxonomy = createReferenceTaxonomyFromProviderRequest(request);
+	const training = createReferenceTrainingFromProviderRequest(request);
+	const selection = createReferenceSelectionFromProviderRequest(request);
 	const licenseName = formatLicenseName(image.license, image.licenseVersion);
 	const referenceImage: DrawingReference['image'] = {
 		url: image.imageUrl,
@@ -217,7 +232,9 @@ function toDrawingReference(image: OpenverseImage, category: ReferenceCategory):
 			referenceId: image.id
 		},
 		title: image.title ?? 'Untitled Openverse image',
-		category,
+		taxonomy,
+		...(training === undefined ? {} : { training }),
+		...(selection === undefined ? {} : { selection }),
 		image: referenceImage,
 		attribution
 	};
@@ -228,10 +245,8 @@ async function searchOpenverse(
 	fetchFunction: FetchFunction,
 	request: ProviderSearchRequest
 ): Promise<ProviderSearchResult> {
-	const category = request.category;
-
-	if (category === undefined) {
-		throw new Error('Openverse search requires a planned reference category');
+	if (request.primarySubject === undefined) {
+		throw new Error('Openverse search requires a planned reference subject');
 	}
 
 	const response = await fetchFunction(buildOpenverseSearchUrl(config, request), {
@@ -255,7 +270,7 @@ async function searchOpenverse(
 			: undefined;
 
 	return {
-		references: parsedResponse.results.map((image) => toDrawingReference(image, category)),
+		references: parsedResponse.results.map((image) => toDrawingReference(image, request)),
 		nextCursor,
 		cachePolicy: {
 			metadataTtlSeconds: openverseMetadataTtlSeconds,
@@ -273,7 +288,7 @@ export function createOpenverseReferenceProvider(
 		id: openverseProviderId,
 		name: openverseProviderName,
 		capabilities: {
-			categories: referenceCategories,
+			subjects: referenceSubjects,
 			supportsSearch: true,
 			supportsPagination: true,
 			supportsOrientation: true,

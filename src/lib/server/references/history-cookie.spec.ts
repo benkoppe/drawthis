@@ -1,6 +1,14 @@
-import { referenceHistoryCookieName } from '$lib/references';
+import {
+	parseRecentReferenceContexts,
+	referenceContextHistoryCookieName,
+	referenceHistoryCookieName
+} from '$lib/references';
 import { describe, expect, it } from 'vitest';
-import { readRecentReferenceIdsCookie, writeRecentReferenceIdsCookie } from './history-cookie';
+import {
+	readRecentReferenceIdsCookie,
+	writeRecentReferenceContextsCookie,
+	writeRecentReferenceIdsCookie
+} from './history-cookie';
 
 describe('reference history cookie helpers', () => {
 	it('reads recent reference IDs from the configured cookie', () => {
@@ -37,5 +45,34 @@ describe('reference history cookie helpers', () => {
 				}
 			}
 		]);
+	});
+
+	it('trims recent reference contexts to fit browser cookie limits', () => {
+		const writes: { name: string; value: string }[] = [];
+		const cookies = {
+			set(name: string, value: string) {
+				writes.push({ name, value });
+			}
+		};
+
+		writeRecentReferenceContextsCookie(
+			cookies,
+			Array.from({ length: 20 }, (_, index) => ({
+				id: `pexels:${index}:${'x'.repeat(120)}`,
+				providerId: 'pexels',
+				taxonomy: { primarySubject: 'places', topic: 'public-interiors' },
+				selection: { seedId: `places-public-interiors-${index}` },
+				training: {
+					sceneTypes: ['interior', 'public-space', 'everyday-life'],
+					focuses: ['perspective', 'composition', 'value'],
+					complexity: 'dense'
+				}
+			}))
+		);
+
+		const write = writes[0];
+		expect(write?.name).toBe(referenceContextHistoryCookieName);
+		expect(write?.value.length).toBeLessThanOrEqual(1_500);
+		expect(parseRecentReferenceContexts(write?.value)).not.toEqual([]);
 	});
 });

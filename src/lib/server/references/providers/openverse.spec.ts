@@ -53,8 +53,13 @@ describe('createOpenverseReferenceProvider', () => {
 
 		const result = await provider.search({
 			count: 1,
-			category: 'interior',
+			primarySubject: 'places',
+			topic: 'kitchens-workspaces',
 			query: 'cluttered desk',
+			sceneTypes: ['interior', 'workplace'],
+			focuses: ['perspective', 'composition'],
+			complexity: 'dense',
+			seed: { id: 'places-cluttered-desk', label: 'Cluttered desk', query: 'cluttered desk' },
 			orientation: 'landscape'
 		});
 
@@ -78,7 +83,19 @@ describe('createOpenverseReferenceProvider', () => {
 						referenceId: 'openverse-image-1'
 					},
 					title: 'Cluttered desk by a window',
-					category: 'interior',
+					taxonomy: { primarySubject: 'places', topic: 'kitchens-workspaces' },
+					training: {
+						sceneTypes: ['interior', 'workplace'],
+						focuses: ['perspective', 'composition'],
+						complexity: 'dense'
+					},
+					selection: {
+						seed: {
+							id: 'places-cluttered-desk',
+							label: 'Cluttered desk',
+							query: 'cluttered desk'
+						}
+					},
 					image: {
 						url: 'https://images.example.com/desk.jpg',
 						alt: 'Cluttered desk by a window by Example Creator',
@@ -113,7 +130,7 @@ describe('createOpenverseReferenceProvider', () => {
 
 		const result = await provider.search({
 			count: 5,
-			category: 'figure-study',
+			primarySubject: 'people',
 			query: 'standing figure pose',
 			orientation: 'portrait',
 			cursor: '3'
@@ -125,7 +142,7 @@ describe('createOpenverseReferenceProvider', () => {
 		expect(result.nextCursor).toBeUndefined();
 	});
 
-	it('skips mature or incomplete Openverse results', async () => {
+	it('skips mature, incomplete, or unusably small Openverse results', async () => {
 		const provider = createOpenverseReferenceProvider({
 			apiBaseUrl: 'https://api.openverse.org/v1',
 			fetch: async () =>
@@ -133,29 +150,37 @@ describe('createOpenverseReferenceProvider', () => {
 					makeOpenverseResponse({
 						results: [
 							{ id: 'mature', url: 'https://example.com/mature.jpg', mature: true },
-							{ id: 'missing-url', foreign_landing_url: 'https://example.com/source' }
+							{ id: 'missing-url', foreign_landing_url: 'https://example.com/source' },
+							{
+								id: 'small',
+								foreign_landing_url: 'https://example.com/source/small',
+								url: 'https://images.example.com/small.jpg',
+								width: 100,
+								height: 100,
+								mature: false
+							}
 						]
 					})
 				)
 		});
 
 		const result = await provider.search({
-			count: 2,
-			category: 'still-life',
+			count: 3,
+			primarySubject: 'objects',
 			query: 'tools on table'
 		});
 
 		expect(result.references).toEqual([]);
 	});
 
-	it('requires the feed planner to provide the reference category', async () => {
+	it('requires the feed planner to provide the reference subject', async () => {
 		const provider = createOpenverseReferenceProvider({
 			apiBaseUrl: 'https://api.openverse.org/v1',
 			fetch: async () => makeJsonResponse(makeOpenverseResponse())
 		});
 
 		await expect(provider.search({ count: 1, query: 'potted plant' })).rejects.toThrow(
-			'Openverse search requires a planned reference category'
+			'Openverse search requires a planned reference subject'
 		);
 	});
 
@@ -166,7 +191,7 @@ describe('createOpenverseReferenceProvider', () => {
 		});
 
 		await expect(
-			provider.search({ count: 1, category: 'plant', query: 'potted plant' })
+			provider.search({ count: 1, primarySubject: 'nature', query: 'potted plant' })
 		).rejects.toThrow('Openverse search failed with status 429');
 	});
 });

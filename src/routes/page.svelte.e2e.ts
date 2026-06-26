@@ -2,31 +2,38 @@ import { expect, test, type Browser, type Page } from '@playwright/test';
 
 const referenceFeedSeedCookieName = 'drawthis_feed_seed';
 const appUrl = 'http://127.0.0.1:4173';
-const referenceTimelineSessionStorageKey = 'drawthis:reference-timeline';
-const referenceHistoryDatabaseName = 'drawthis-reference-history';
+const referenceTimelineSessionStorageKey = 'drawthis:reference-timeline:v2';
+const referenceHistoryDatabaseName = 'drawthis-reference-history-v3';
 const referenceHistoryDatabaseVersion = 1;
 const referenceHistoryEntryStoreName = 'referenceHistoryEntries';
 
-const categoryLabels = {
-	interior: 'Interior',
-	street: 'Street',
-	'figure-study': 'Figure Study',
-	'still-life': 'Still Life',
-	plant: 'Plant'
+const subjectLabels = {
+	people: 'People',
+	animals: 'Animals',
+	objects: 'Objects',
+	places: 'Places',
+	nature: 'Nature',
+	'vehicles-machines': 'Vehicles & Machines'
 } as const;
 
-const categoryImageUrls = {
-	interior: '/references/room-interior.svg',
-	street: '/references/street-corner.svg',
-	'figure-study': '/references/hand-study.svg',
-	'still-life': '/references/still-life.svg',
-	plant: '/references/plant-window.svg'
+const subjectImageUrls = {
+	people: '/references/hand-study.svg',
+	animals: '/references/plant-window.svg',
+	objects: '/references/still-life.svg',
+	places: '/references/room-interior.svg',
+	nature: '/references/plant-window.svg',
+	'vehicles-machines': '/references/street-corner.svg'
 } as const;
 
-type TestReferenceCategory = keyof typeof categoryLabels;
+type TestReferenceSubject = keyof typeof subjectLabels;
 
-function makeE2eReference(category: TestReferenceCategory, title: string, id = title) {
-	const imageUrl = categoryImageUrls[category];
+function makeE2eReference(
+	subject: TestReferenceSubject,
+	title: string,
+	id = title,
+	topic?: string
+) {
+	const imageUrl = subjectImageUrls[subject];
 
 	return {
 		id: `e2e:${id}`,
@@ -36,7 +43,10 @@ function makeE2eReference(category: TestReferenceCategory, title: string, id = t
 			referenceId: id
 		},
 		title,
-		category,
+		taxonomy: {
+			primarySubject: subject,
+			...(topic === undefined ? {} : { topic })
+		},
 		image: {
 			url: imageUrl,
 			alt: title
@@ -99,16 +109,43 @@ async function openCategoryFilter(page: Page): Promise<void> {
 	}).toPass();
 }
 
-async function chooseOnlyCategory(page: Page, category: TestReferenceCategory): Promise<void> {
+async function resetCategoryFilter(page: Page): Promise<void> {
 	await openCategoryFilter(page);
-	await getCategoryFilterInput(page, 'All categories').uncheck();
-	await expect(page.getByRole('button', { name: /no categories/i })).toBeVisible();
-	await getCategoryFilterInput(page, categoryLabels[category]).check();
+	const allCategoriesInput = getCategoryFilterInput(page, 'All categories');
 
-	await expect(page.getByRole('button', { name: /1 of 5 categories/i })).toBeVisible();
-	await expect(getCategoryFilterInput(page, categoryLabels[category])).toBeChecked();
+	await allCategoriesInput.check();
+	await allCategoriesInput.uncheck();
+}
+
+async function closeCategoryFilter(page: Page): Promise<void> {
 	await page.keyboard.press('Escape');
 	await expect(getCategoryFilterMenu(page)).toBeHidden();
+}
+
+async function expandSubjectTopics(page: Page, subjectLabel: string): Promise<void> {
+	await getCategoryFilterMenu(page)
+		.getByRole('button', { name: new RegExp(`expand ${subjectLabel} subcategories`, 'i') })
+		.click();
+}
+
+async function chooseOnlySubject(page: Page, subject: TestReferenceSubject): Promise<void> {
+	await resetCategoryFilter(page);
+	await getCategoryFilterInput(page, subjectLabels[subject]).check();
+
+	await expect(getCategoryFilterButton(page)).toHaveText(subjectLabels[subject]);
+	await expect(getCategoryFilterInput(page, subjectLabels[subject])).toBeChecked();
+	await closeCategoryFilter(page);
+}
+
+async function chooseOnlyTopic(
+	page: Page,
+	subjectLabel: string,
+	topicLabel: string
+): Promise<void> {
+	await resetCategoryFilter(page);
+	await expandSubjectTopics(page, subjectLabel);
+	await getCategoryFilterInput(page, topicLabel).check();
+	await closeCategoryFilter(page);
 }
 
 async function mockReferenceFeedPosts(page: Page): Promise<unknown[]> {
@@ -122,22 +159,26 @@ async function mockReferenceFeedPosts(page: Page): Promise<unknown[]> {
 		}
 
 		const body = route.request().postDataJSON() as {
-			preferences?: { enabledCategories?: TestReferenceCategory[] };
+			count?: number;
+			preferences?: { enabledSubjects?: TestReferenceSubject[]; enabledTopics?: string[] };
 		};
-		const [category = 'interior'] = body.preferences?.enabledCategories ?? ['interior'];
+		const [subject = 'places'] = body.preferences?.enabledSubjects ?? ['places'];
+		const [topic] = body.preferences?.enabledTopics ?? [];
+		const count = body.count ?? 1;
 		requestBodies.push(body);
 		responseIndex += 1;
 
 		await route.fulfill({
 			contentType: 'application/json',
 			body: JSON.stringify({
-				references: [
+				references: Array.from({ length: count }, (_, index) =>
 					makeE2eReference(
-						category,
-						`Mock ${categoryLabels[category]} ${responseIndex}`,
-						`${category}-${responseIndex}`
+						subject,
+						`Mock ${subjectLabels[subject]} ${topic ?? 'all'} ${responseIndex}-${index + 1}`,
+						`${subject}-${topic ?? 'all'}-${responseIndex}-${index + 1}`,
+						topic
 					)
-				]
+				)
 			})
 		});
 	});
@@ -153,28 +194,28 @@ async function seedReferenceTimeline(page: Page): Promise<void> {
 			referenceId: 'e2e:a',
 			seenAt: '2026-01-01T00:00:00.000Z',
 			tabId,
-			reference: makeE2eReference('interior', 'Seed A', 'a')
+			reference: makeE2eReference('places', 'Seed A', 'a')
 		},
 		{
 			id: 'entry-b',
 			referenceId: 'e2e:b',
 			seenAt: '2026-01-01T00:00:01.000Z',
 			tabId,
-			reference: makeE2eReference('street', 'Seed B', 'b')
+			reference: makeE2eReference('people', 'Seed B', 'b')
 		},
 		{
 			id: 'entry-c',
 			referenceId: 'e2e:c',
 			seenAt: '2026-01-01T00:00:02.000Z',
 			tabId,
-			reference: makeE2eReference('interior', 'Seed C', 'c')
+			reference: makeE2eReference('places', 'Seed C', 'c')
 		},
 		{
 			id: 'entry-d',
 			referenceId: 'e2e:d',
 			seenAt: '2026-01-01T00:00:03.000Z',
 			tabId,
-			reference: makeE2eReference('still-life', 'Seed D', 'd')
+			reference: makeE2eReference('objects', 'Seed D', 'd')
 		}
 	];
 
@@ -327,7 +368,7 @@ test('supports keyboard shortcuts for previous and next reference navigation', a
 	await expect(referenceDescription).toHaveText(secondReferenceTitle);
 });
 
-test('applies the selected category to the next reference even when references are already queued', async ({
+test('applies the selected subject to the next reference even when references are already queued', async ({
 	page
 }) => {
 	const requestBodies = await mockReferenceFeedPosts(page);
@@ -336,29 +377,93 @@ test('applies the selected category to the next reference even when references a
 	const heading = page.getByRole('heading', { level: 1 });
 	await expect(heading).toBeVisible();
 
-	const visibleCategory = await heading.textContent();
-	const selectedCategory = (Object.entries(categoryLabels).find(
-		([, label]) => label !== visibleCategory
-	)?.[0] ?? 'plant') as TestReferenceCategory;
+	const visibleSubject = (await heading.textContent())?.split(' · ')[0];
+	const selectedSubject = (Object.entries(subjectLabels).find(
+		([, label]) => label !== visibleSubject
+	)?.[0] ?? 'nature') as TestReferenceSubject;
 
-	await chooseOnlyCategory(page, selectedCategory);
+	await chooseOnlySubject(page, selectedSubject);
 	await expect
 		.poll(() =>
 			requestBodies.some((body) => {
-				const categories = (body as { preferences?: { enabledCategories?: string[] } }).preferences
-					?.enabledCategories;
+				const subjects = (body as { preferences?: { enabledSubjects?: string[] } }).preferences
+					?.enabledSubjects;
 
-				return categories?.length === 1 && categories[0] === selectedCategory;
+				return subjects?.length === 1 && subjects[0] === selectedSubject;
 			})
 		)
 		.toBe(true);
 
 	await page.getByRole('button', { name: 'Next' }).click();
 
-	await expect(heading).toHaveText(categoryLabels[selectedCategory]);
+	await expect(heading).toContainText(subjectLabels[selectedSubject]);
 });
 
-test('branches the active tab timeline after Back and category changes without deleting durable history', async ({
+test('discards queued subcategory references after changing category selection', async ({
+	page
+}) => {
+	const requestBodies = await mockReferenceFeedPosts(page);
+	await page.goto('/');
+
+	const heading = page.getByRole('heading', { level: 1 });
+	const nextButton = page.getByRole('button', { name: 'Next' });
+	await expect(heading).toBeVisible();
+
+	await chooseOnlyTopic(page, 'Objects', 'Tools');
+	await expect
+		.poll(() =>
+			requestBodies.some((body) => {
+				const preferences = (
+					body as {
+						preferences?: { enabledSubjects?: string[]; enabledTopics?: string[] };
+					}
+				).preferences;
+
+				return (
+					preferences?.enabledSubjects?.length === 1 &&
+					preferences.enabledSubjects[0] === 'objects' &&
+					preferences.enabledTopics?.length === 1 &&
+					preferences.enabledTopics[0] === 'tools'
+				);
+			})
+		)
+		.toBe(true);
+
+	for (let index = 0; index < 3; index += 1) {
+		await expect(nextButton).toBeEnabled();
+		await nextButton.click();
+		await expect(heading).toContainText('Objects · Tools');
+	}
+
+	await chooseOnlyTopic(page, 'Nature', 'Plants / Flowers');
+	await expect
+		.poll(() =>
+			requestBodies.some((body) => {
+				const preferences = (
+					body as {
+						preferences?: { enabledSubjects?: string[]; enabledTopics?: string[] };
+					}
+				).preferences;
+
+				return (
+					preferences?.enabledSubjects?.length === 1 &&
+					preferences.enabledSubjects[0] === 'nature' &&
+					preferences.enabledTopics?.length === 1 &&
+					preferences.enabledTopics[0] === 'plants-flowers'
+				);
+			})
+		)
+		.toBe(true);
+
+	for (let index = 0; index < 4; index += 1) {
+		await expect(nextButton).toBeEnabled();
+		await nextButton.click();
+		await expect(heading).toContainText('Nature · Plants / Flowers');
+		await expect(heading).not.toContainText('Objects · Tools');
+	}
+});
+
+test('branches the active tab timeline after Back and subject changes without deleting durable history', async ({
 	page
 }) => {
 	await mockReferenceFeedPosts(page);
@@ -374,13 +479,13 @@ test('branches the active tab timeline after Back and category changes without d
 	await expect(referenceDescription).toHaveText('Seed C');
 	await page.getByRole('button', { name: 'Back' }).click();
 	await expect(referenceDescription).toHaveText('Seed B');
-	await expect(heading).toHaveText('Street');
+	await expect(heading).toHaveText('People');
 	await expect.poll(async () => (await readStoredHistoryEntryIds(page)).length).toBe(4);
 
-	await chooseOnlyCategory(page, 'plant');
+	await chooseOnlySubject(page, 'nature');
 	await page.getByRole('button', { name: 'Next' }).click();
 
-	await expect(heading).toHaveText('Plant');
+	await expect(heading).toContainText('Nature');
 	await expect(referenceDescription).not.toHaveText('Seed C');
 	await expect(referenceDescription).not.toHaveText('Seed D');
 
@@ -405,32 +510,28 @@ test('allows no selected categories as an invalid state until a category is sele
 	await getCategoryFilterInput(page, 'All categories').uncheck();
 
 	await expect(page.getByRole('button', { name: /no categories/i })).toBeVisible();
-	await expect(
-		getCategoryFilterMenu(page).getByText('Select at least one category to continue.')
-	).toHaveCount(0);
-	await expect(page.getByText('Select at least one category to continue.')).toHaveCount(0);
 	await expect(page.getByRole('button', { name: 'Next' })).toBeDisabled();
-	await expect(getCategoryFilterInput(page, 'Plant')).toBeEnabled();
-	await expect(getCategoryFilterInput(page, 'Plant')).not.toBeChecked();
+	await expect(getCategoryFilterInput(page, 'Nature')).toBeEnabled();
+	await expect(getCategoryFilterInput(page, 'Nature')).not.toBeChecked();
 
-	await getCategoryFilterInput(page, 'Plant').check();
-	await expect(page.getByRole('button', { name: /1 of 5 categories/i })).toBeVisible();
+	await getCategoryFilterInput(page, 'Nature').check();
+	await expect(getCategoryFilterButton(page)).toHaveText('Nature');
 	await expect(page.getByRole('button', { name: 'Next' })).toBeEnabled();
 });
 
 test('keeps the category filter selection after reload', async ({ page }) => {
 	await page.goto('/');
-	await chooseOnlyCategory(page, 'plant');
+	await chooseOnlySubject(page, 'nature');
 
 	await page.reload();
 
-	await expect(getCategoryFilterButton(page)).toHaveText(/1 of 5 categories/i);
+	await expect(getCategoryFilterButton(page)).toHaveText(/Nature/i);
 	await openCategoryFilter(page);
-	await expect(getCategoryFilterInput(page, 'Plant')).toBeChecked();
-	await expect(getCategoryFilterInput(page, 'Street')).not.toBeChecked();
+	await expect(getCategoryFilterInput(page, 'Nature')).toBeChecked();
+	await expect(getCategoryFilterInput(page, 'Places')).not.toBeChecked();
 });
 
-test('keeps the empty invalid category filter state after reload', async ({ page }) => {
+test('keeps the empty invalid category selection state after reload', async ({ page }) => {
 	await page.goto('/');
 	await openCategoryFilter(page);
 	await getCategoryFilterInput(page, 'All categories').uncheck();
@@ -442,6 +543,13 @@ test('keeps the empty invalid category filter state after reload', async ({ page
 });
 
 test('uses anonymous feed seeds to vary initial references across devices', async ({ browser }) => {
+	test.skip(
+		process.env.DRAWTHIS_LOCAL_REFERENCES_ENABLED === 'true' &&
+			process.env.DRAWTHIS_PEXELS_ENABLED !== 'true' &&
+			process.env.DRAWTHIS_OPENVERSE_ENABLED !== 'true',
+		'local-only references are deterministic enough that different feed seeds may choose the same initial reference'
+	);
+
 	const firstTitle = await getInitialReferenceTitleForSeed(browser, 'device-a');
 	const secondTitle = await getInitialReferenceTitleForSeed(browser, 'device-b');
 

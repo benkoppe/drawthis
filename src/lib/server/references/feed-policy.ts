@@ -1,33 +1,82 @@
-import type { ReferenceCategory, ReferenceOrientation, ReferenceProviderId } from '$lib/references';
-
-export interface ReferenceSubjectSeed {
-	id: string;
-	category: ReferenceCategory;
-	query: string;
-	weight?: number;
-	orientation?: ReferenceOrientation;
-}
-
-export interface ReferenceCategoryPolicy {
-	category: ReferenceCategory;
-	weight?: number;
-	subjectSeeds: readonly ReferenceSubjectSeed[];
-}
+import type {
+	ReferenceProviderId,
+	ReferenceSceneType,
+	ReferenceVisualComplexity
+} from '$lib/references';
+import { defaultReferenceSearchSeeds } from './reference-seeds';
+import type { ReferenceSearchSeed, ReferenceSeedCoverageTag } from './reference-seed';
 
 export interface ReferenceProviderPaginationPolicy {
 	initialCursorPageMin: number;
 	initialCursorPageMax: number;
 }
 
+export interface ReferenceCandidateCollectionPolicy {
+	minimumSearchAttempts?: number;
+	minimumUniqueSubjectCount?: number;
+	minimumUniqueSeedCount?: number;
+	minimumUniqueTopicCount?: number;
+	targetPreferredCandidateMultiplier?: number;
+	minimumPreferredCandidateCount?: number;
+}
+
+export interface ReferenceSeedWeightPolicy {
+	coverageTagMultipliers?: Readonly<Partial<Record<ReferenceSeedCoverageTag, number>>>;
+	complexityMultipliers?: Readonly<Partial<Record<ReferenceVisualComplexity, number>>>;
+	sceneTypeMultipliers?: Readonly<Partial<Record<ReferenceSceneType, number>>>;
+}
+
 export interface ReferenceFeedPolicy {
-	categories: readonly ReferenceCategoryPolicy[];
+	seeds: readonly ReferenceSearchSeed[];
 	providerWeights?: Readonly<Partial<Record<ReferenceProviderId, number>>>;
 	providerPagination?: Readonly<
 		Partial<Record<ReferenceProviderId, ReferenceProviderPaginationPolicy>>
 	>;
+	candidateCollection?: ReferenceCandidateCollectionPolicy;
+	seedWeights?: ReferenceSeedWeightPolicy;
+	maxProviderSearchAttempts?: number;
 }
 
 export const defaultReferenceFeedPolicy: ReferenceFeedPolicy = {
+	maxProviderSearchAttempts: 24,
+	candidateCollection: {
+		minimumSearchAttempts: 2,
+		minimumUniqueSubjectCount: 3,
+		minimumUniqueSeedCount: 2,
+		minimumUniqueTopicCount: 2,
+		targetPreferredCandidateMultiplier: 2,
+		minimumPreferredCandidateCount: 4
+	},
+	providerWeights: {
+		pexels: 4,
+		openverse: 2,
+		local: 0.5
+	},
+	seedWeights: {
+		coverageTagMultipliers: {
+			mundane: 1.35,
+			'everyday-object': 1.2,
+			interior: 1.1,
+			street: 1.1,
+			'public-space': 1.08,
+			desk: 1.08,
+			clutter: 1.08
+		},
+		complexityMultipliers: {
+			simple: 1.05,
+			moderate: 1.2,
+			complex: 1,
+			dense: 0.8
+		},
+		sceneTypeMultipliers: {
+			'everyday-life': 1.25,
+			interior: 1.08,
+			street: 1.08,
+			'public-space': 1.05,
+			workplace: 1.05,
+			'still-life': 1.03
+		}
+	},
 	providerPagination: {
 		pexels: {
 			initialCursorPageMin: 1,
@@ -38,68 +87,5 @@ export const defaultReferenceFeedPolicy: ReferenceFeedPolicy = {
 			initialCursorPageMax: 5
 		}
 	},
-	categories: [
-		{
-			category: 'interior',
-			subjectSeeds: [
-				{ id: 'interior-cluttered-desk', category: 'interior', query: 'cluttered desk' },
-				{ id: 'interior-kitchen-counter', category: 'interior', query: 'ordinary kitchen counter' },
-				{ id: 'interior-small-bedroom', category: 'interior', query: 'small bedroom' },
-				{ id: 'interior-waiting-room', category: 'interior', query: 'waiting room interior' }
-			]
-		},
-		{
-			category: 'street',
-			subjectSeeds: [
-				{ id: 'street-storefront-sidewalk', category: 'street', query: 'storefront sidewalk' },
-				{ id: 'street-parking-lot', category: 'street', query: 'parking lot' },
-				{ id: 'street-transit-stop', category: 'street', query: 'transit stop' },
-				{ id: 'street-side-street', category: 'street', query: 'side street' }
-			]
-		},
-		{
-			category: 'figure-study',
-			subjectSeeds: [
-				{
-					id: 'figure-standing-pose',
-					category: 'figure-study',
-					query: 'standing figure pose',
-					orientation: 'portrait'
-				},
-				{
-					id: 'figure-seated-pose',
-					category: 'figure-study',
-					query: 'seated figure pose'
-				},
-				{ id: 'figure-hands', category: 'figure-study', query: 'hands reference' },
-				{
-					id: 'figure-face-expression',
-					category: 'figure-study',
-					query: 'face expression reference'
-				}
-			]
-		},
-		{
-			category: 'still-life',
-			subjectSeeds: [
-				{ id: 'still-life-mug-bottle', category: 'still-life', query: 'mug and bottle still life' },
-				{ id: 'still-life-tools-table', category: 'still-life', query: 'tools on table' },
-				{ id: 'still-life-folded-clothes', category: 'still-life', query: 'folded clothes' },
-				{
-					id: 'still-life-household-objects',
-					category: 'still-life',
-					query: 'household objects still life'
-				}
-			]
-		},
-		{
-			category: 'plant',
-			subjectSeeds: [
-				{ id: 'plant-potted-plant', category: 'plant', query: 'potted plant' },
-				{ id: 'plant-garden-leaves', category: 'plant', query: 'garden leaves' },
-				{ id: 'plant-tree-branch', category: 'plant', query: 'tree branch' },
-				{ id: 'plant-flowers-vase', category: 'plant', query: 'flowers in vase' }
-			]
-		}
-	]
+	seeds: defaultReferenceSearchSeeds
 };

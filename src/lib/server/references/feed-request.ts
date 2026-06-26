@@ -1,11 +1,23 @@
 import {
-	isReferenceCategory,
-	normalizeReferenceCategories,
+	isReferencePracticeFocus,
+	isReferenceSceneType,
+	isReferenceSubject,
+	isReferenceTopic,
+	isReferenceTopicForSubject,
+	isReferenceVisualComplexity,
+	normalizeReferenceSubjects,
+	normalizeReferenceTopics,
+	parseReferenceTaxonomyLike,
+	parseReferenceTrainingMetadataLike,
+	referenceSubjects,
 	trimRecentReferenceIds,
-	type ReferenceCategory,
 	type ReferenceFeedContextItem,
 	type ReferenceFeedPreferences,
-	type ReferenceFeedRequest
+	type ReferenceFeedRequest,
+	type ReferenceSubjectId,
+	type ReferenceTaxonomy,
+	type ReferenceTopicId,
+	type ReferenceTrainingMetadata
 } from '$lib/references';
 import { error } from '@sveltejs/kit';
 
@@ -13,28 +25,164 @@ function isPlainObject(value: unknown): value is Record<string, unknown> {
 	return value !== null && typeof value === 'object' && !Array.isArray(value);
 }
 
-function parseEnabledCategories(value: unknown): ReferenceCategory[] {
+function parseEnabledSubjects(value: unknown): ReferenceSubjectId[] {
 	if (!Array.isArray(value)) {
-		throw error(400, 'preferences.enabledCategories must be an array');
+		throw error(400, 'preferences.enabledSubjects must be an array');
 	}
 
 	if (value.length === 0) {
-		throw error(400, 'preferences.enabledCategories must include at least one category');
+		throw error(400, 'preferences.enabledSubjects must include at least one subject');
 	}
 
-	const categories: ReferenceCategory[] = [];
+	const subjects: ReferenceSubjectId[] = [];
 
-	for (const category of value) {
-		if (!isReferenceCategory(category)) {
-			throw error(400, 'category is not supported');
+	for (const subject of value) {
+		if (!isReferenceSubject(subject)) {
+			throw error(400, 'subject is not supported');
 		}
 
-		if (!categories.includes(category)) {
-			categories.push(category);
+		if (!subjects.includes(subject)) {
+			subjects.push(subject);
 		}
 	}
 
-	return normalizeReferenceCategories(categories);
+	return normalizeReferenceSubjects(subjects);
+}
+
+function parseEnabledTopics(
+	value: unknown,
+	enabledSubjects: readonly ReferenceSubjectId[]
+): ReferenceTopicId[] {
+	if (!Array.isArray(value)) {
+		throw error(400, 'preferences.enabledTopics must be an array');
+	}
+
+	if (value.length === 0) {
+		throw error(400, 'preferences.enabledTopics must include at least one topic');
+	}
+
+	const topics: ReferenceTopicId[] = [];
+
+	for (const topic of value) {
+		if (!isReferenceTopic(topic)) {
+			throw error(400, 'topic is not supported');
+		}
+
+		if (!topics.includes(topic)) {
+			topics.push(topic);
+		}
+	}
+
+	const normalizedTopics = normalizeReferenceTopics(topics, enabledSubjects);
+
+	if (normalizedTopics.length === 0) {
+		throw error(
+			400,
+			'preferences.enabledTopics must include at least one topic for an enabled subject'
+		);
+	}
+
+	return normalizedTopics;
+}
+
+function parseReferenceTaxonomy(value: unknown, fieldName: string): ReferenceTaxonomy {
+	if (!isPlainObject(value)) {
+		throw error(400, `${fieldName}.taxonomy must be an object`);
+	}
+
+	if (!isReferenceSubject(value.primarySubject)) {
+		throw error(400, `${fieldName}.taxonomy.primarySubject is not supported`);
+	}
+
+	if (value.topic !== undefined) {
+		if (!isReferenceTopic(value.topic)) {
+			throw error(400, `${fieldName}.taxonomy.topic is not supported`);
+		}
+
+		if (!isReferenceTopicForSubject(value.topic, value.primarySubject)) {
+			throw error(400, `${fieldName}.taxonomy.topic does not belong to primarySubject`);
+		}
+	}
+
+	if (value.secondarySubjects !== undefined) {
+		if (!Array.isArray(value.secondarySubjects)) {
+			throw error(400, `${fieldName}.taxonomy.secondarySubjects must be an array`);
+		}
+
+		for (const subject of value.secondarySubjects) {
+			if (!isReferenceSubject(subject)) {
+				throw error(400, `${fieldName}.taxonomy.secondarySubjects contains unsupported subject`);
+			}
+		}
+	}
+
+	return parseReferenceTaxonomyLike(value) as ReferenceTaxonomy;
+}
+
+function parseReferenceTraining(
+	value: unknown,
+	fieldName: string
+): ReferenceTrainingMetadata | undefined {
+	if (value === undefined) {
+		return undefined;
+	}
+
+	if (!isPlainObject(value)) {
+		throw error(400, `${fieldName}.training must be an object`);
+	}
+
+	if (value.sceneTypes !== undefined) {
+		if (!Array.isArray(value.sceneTypes)) {
+			throw error(400, `${fieldName}.training.sceneTypes must be an array`);
+		}
+
+		for (const sceneType of value.sceneTypes) {
+			if (!isReferenceSceneType(sceneType)) {
+				throw error(400, `${fieldName}.training.sceneTypes contains unsupported scene type`);
+			}
+		}
+	}
+
+	if (value.focuses !== undefined) {
+		if (!Array.isArray(value.focuses)) {
+			throw error(400, `${fieldName}.training.focuses must be an array`);
+		}
+
+		for (const focus of value.focuses) {
+			if (!isReferencePracticeFocus(focus)) {
+				throw error(400, `${fieldName}.training.focuses contains unsupported focus`);
+			}
+		}
+	}
+
+	if (value.complexity !== undefined && !isReferenceVisualComplexity(value.complexity)) {
+		throw error(400, `${fieldName}.training.complexity is not supported`);
+	}
+
+	return parseReferenceTrainingMetadataLike(value);
+}
+
+function parseReferenceSelection(
+	value: unknown,
+	fieldName: string
+): ReferenceFeedContextItem['selection'] {
+	if (value === undefined) {
+		return undefined;
+	}
+
+	if (!isPlainObject(value)) {
+		throw error(400, `${fieldName}.selection must be an object`);
+	}
+
+	if (value.seedId === undefined) {
+		return undefined;
+	}
+
+	if (typeof value.seedId !== 'string') {
+		throw error(400, `${fieldName}.selection.seedId must be a string`);
+	}
+
+	return value.seedId.length > 0 ? { seedId: value.seedId } : undefined;
 }
 
 function parseReferenceFeedContextItems(
@@ -57,16 +205,8 @@ function parseReferenceFeedContextItems(
 			throw error(400, `${fieldName}.id must be a non-empty string`);
 		}
 
-		if (!isReferenceCategory(reference.category)) {
-			throw error(400, `${fieldName}.category is not supported`);
-		}
-
 		if (reference.providerId !== undefined && typeof reference.providerId !== 'string') {
 			throw error(400, `${fieldName}.providerId must be a string`);
-		}
-
-		if (reference.seedId !== undefined && typeof reference.seedId !== 'string') {
-			throw error(400, `${fieldName}.seedId must be a string`);
 		}
 
 		if (referenceIds.has(reference.id)) {
@@ -75,15 +215,21 @@ function parseReferenceFeedContextItems(
 
 		const parsedReference: ReferenceFeedContextItem = {
 			id: reference.id,
-			category: reference.category
+			taxonomy: parseReferenceTaxonomy(reference.taxonomy, fieldName)
 		};
+		const selection = parseReferenceSelection(reference.selection, fieldName);
+		const training = parseReferenceTraining(reference.training, fieldName);
 
 		if (reference.providerId !== undefined && reference.providerId.length > 0) {
 			parsedReference.providerId = reference.providerId;
 		}
 
-		if (reference.seedId !== undefined && reference.seedId.length > 0) {
-			parsedReference.seedId = reference.seedId;
+		if (selection !== undefined) {
+			parsedReference.selection = selection;
+		}
+
+		if (training !== undefined) {
+			parsedReference.training = training;
 		}
 
 		referenceIds.add(reference.id);
@@ -99,9 +245,18 @@ function parsePreferences(value: unknown): ReferenceFeedPreferences {
 	}
 
 	const preferences: ReferenceFeedPreferences = {};
+	const enabledSubjects =
+		value.enabledSubjects === undefined ? undefined : parseEnabledSubjects(value.enabledSubjects);
 
-	if (value.enabledCategories !== undefined) {
-		preferences.enabledCategories = parseEnabledCategories(value.enabledCategories);
+	if (enabledSubjects !== undefined) {
+		preferences.enabledSubjects = enabledSubjects;
+	}
+
+	if (value.enabledTopics !== undefined) {
+		preferences.enabledTopics = parseEnabledTopics(
+			value.enabledTopics,
+			enabledSubjects ?? referenceSubjects
+		);
 	}
 
 	return preferences;

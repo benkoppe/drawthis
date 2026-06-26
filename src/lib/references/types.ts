@@ -1,8 +1,36 @@
-import type { ReferenceCategory } from './categories';
+import type {
+	ReferencePracticeFocus,
+	ReferenceSceneType,
+	ReferenceSubjectId,
+	ReferenceTopicId,
+	ReferenceVisualComplexity
+} from './taxonomy';
 
 export type ReferenceProviderId = 'local' | (string & {});
 
 export type ReferenceOrientation = 'any' | 'landscape' | 'portrait' | 'square';
+
+export interface ReferenceTaxonomy {
+	primarySubject: ReferenceSubjectId;
+	topic?: ReferenceTopicId;
+	secondarySubjects?: readonly ReferenceSubjectId[];
+}
+
+export interface ReferenceTrainingMetadata {
+	focuses?: readonly ReferencePracticeFocus[];
+	sceneTypes?: readonly ReferenceSceneType[];
+	complexity?: ReferenceVisualComplexity;
+}
+
+export interface ReferenceSeedMetadata {
+	id: string;
+	label: string;
+	query?: string;
+}
+
+export interface ReferenceSelectionMetadata {
+	seed?: ReferenceSeedMetadata;
+}
 
 export interface DrawingReference {
 	id: string;
@@ -12,7 +40,9 @@ export interface DrawingReference {
 		referenceId: string;
 	};
 	title: string;
-	category: ReferenceCategory;
+	taxonomy: ReferenceTaxonomy;
+	training?: ReferenceTrainingMetadata;
+	selection?: ReferenceSelectionMetadata;
 	image: {
 		url: string;
 		alt: string;
@@ -31,14 +61,18 @@ export interface DrawingReference {
 }
 
 export interface ReferenceFeedPreferences {
-	enabledCategories?: readonly ReferenceCategory[];
+	enabledSubjects?: readonly ReferenceSubjectId[];
+	enabledTopics?: readonly ReferenceTopicId[];
 }
 
 export interface ReferenceFeedContextItem {
 	id: string;
-	category: ReferenceCategory;
+	taxonomy: ReferenceTaxonomy;
 	providerId?: ReferenceProviderId;
-	seedId?: string;
+	selection?: {
+		seedId?: string;
+	};
+	training?: ReferenceTrainingMetadata;
 }
 
 export interface ReferenceFeedRequest {

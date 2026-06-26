@@ -1,8 +1,31 @@
-import type { ReferenceCategory } from './categories';
+import type {
+	ReferencePracticeFocus,
+	ReferencePracticeMixMode,
+	ReferenceSceneType,
+	ReferenceSubjectId,
+	ReferenceTopicId,
+	ReferenceVisualComplexity
+} from './taxonomy';
 
 export type ReferenceProviderId = 'local' | (string & {});
 
 export type ReferenceOrientation = 'any' | 'landscape' | 'portrait' | 'square';
+
+export interface ReferenceTaxonomy {
+	primarySubject: ReferenceSubjectId;
+	topic?: ReferenceTopicId;
+	secondarySubjects?: readonly ReferenceSubjectId[];
+	sceneTypes?: readonly ReferenceSceneType[];
+}
+
+export interface ReferenceTrainingMetadata {
+	focuses?: readonly ReferencePracticeFocus[];
+	complexity?: ReferenceVisualComplexity;
+}
+
+export interface ReferenceSelectionMetadata {
+	seedId?: string;
+}
 
 export interface DrawingReference {
 	id: string;
@@ -12,7 +35,9 @@ export interface DrawingReference {
 		referenceId: string;
 	};
 	title: string;
-	category: ReferenceCategory;
+	taxonomy: ReferenceTaxonomy;
+	training?: ReferenceTrainingMetadata;
+	selection?: ReferenceSelectionMetadata;
 	image: {
 		url: string;
 		alt: string;
@@ -31,14 +56,18 @@ export interface DrawingReference {
 }
 
 export interface ReferenceFeedPreferences {
-	enabledCategories?: readonly ReferenceCategory[];
+	practiceMode?: ReferencePracticeMixMode;
+	enabledSubjects?: readonly ReferenceSubjectId[];
 }
 
 export interface ReferenceFeedContextItem {
 	id: string;
-	category: ReferenceCategory;
+	primarySubject: ReferenceSubjectId;
+	topic?: ReferenceTopicId;
 	providerId?: ReferenceProviderId;
 	seedId?: string;
+	sceneTypes?: readonly ReferenceSceneType[];
+	practiceFocuses?: readonly ReferencePracticeFocus[];
 }
 
 export interface ReferenceFeedRequest {

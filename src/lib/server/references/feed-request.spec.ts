@@ -11,19 +11,22 @@ function expectBadRequest(callback: () => void, message: string): void {
 }
 
 describe('parseReferenceFeedRequest', () => {
-	it('parses enabled category preferences into canonical order and removes duplicates', () => {
+	it('parses enabled subject preferences into canonical order and removes duplicates', () => {
 		expect(
 			parseReferenceFeedRequest({
 				count: 2,
 				currentReferenceId: 'local:room-interior',
 				recentReferenceIds: ['a', 'b'],
-				preferences: { enabledCategories: ['plant', 'street', 'street'] }
+				preferences: {
+					practiceMode: 'places-perspective',
+					enabledSubjects: ['nature', 'places', 'places']
+				}
 			})
 		).toEqual({
 			count: 2,
 			currentReferenceId: 'local:room-interior',
 			recentReferenceIds: ['a', 'b'],
-			preferences: { enabledCategories: ['street', 'plant'] }
+			preferences: { practiceMode: 'places-perspective', enabledSubjects: ['places', 'nature'] }
 		});
 	});
 
@@ -31,17 +34,33 @@ describe('parseReferenceFeedRequest', () => {
 		expect(
 			parseReferenceFeedRequest({
 				recentReferences: [
-					{ id: 'pexels:1', category: 'street', providerId: 'pexels' },
-					{ id: 'pexels:1', category: 'street', providerId: 'pexels' }
+					{ id: 'pexels:1', primarySubject: 'places', providerId: 'pexels' },
+					{ id: 'pexels:1', primarySubject: 'places', providerId: 'pexels' }
 				],
 				precedingReferences: [
-					{ id: 'openverse:2', category: 'plant', providerId: 'openverse', seedId: 'plant' }
+					{
+						id: 'openverse:2',
+						primarySubject: 'nature',
+						topic: 'plants-flowers',
+						providerId: 'openverse',
+						seedId: 'nature-potted-plant',
+						sceneTypes: ['interior'],
+						practiceFocuses: ['shape']
+					}
 				]
 			})
 		).toEqual({
-			recentReferences: [{ id: 'pexels:1', category: 'street', providerId: 'pexels' }],
+			recentReferences: [{ id: 'pexels:1', primarySubject: 'places', providerId: 'pexels' }],
 			precedingReferences: [
-				{ id: 'openverse:2', category: 'plant', providerId: 'openverse', seedId: 'plant' }
+				{
+					id: 'openverse:2',
+					primarySubject: 'nature',
+					topic: 'plants-flowers',
+					providerId: 'openverse',
+					seedId: 'nature-potted-plant',
+					sceneTypes: ['interior'],
+					practiceFocuses: ['shape']
+				}
 			]
 		});
 	});
@@ -49,8 +68,10 @@ describe('parseReferenceFeedRequest', () => {
 	it('rejects invalid reference contexts', () => {
 		expectBadRequest(
 			() =>
-				parseReferenceFeedRequest({ precedingReferences: [{ id: 'pexels:1', category: 'bad' }] }),
-			'precedingReferences.category is not supported'
+				parseReferenceFeedRequest({
+					precedingReferences: [{ id: 'pexels:1', primarySubject: 'bad' }]
+				}),
+			'precedingReferences.primarySubject is not supported'
 		);
 	});
 
@@ -68,24 +89,31 @@ describe('parseReferenceFeedRequest', () => {
 		);
 	});
 
-	it('rejects unsupported enabled categories', () => {
+	it('rejects unsupported enabled subjects', () => {
 		expectBadRequest(
-			() => parseReferenceFeedRequest({ preferences: { enabledCategories: ['landscape'] } }),
-			'category is not supported'
+			() => parseReferenceFeedRequest({ preferences: { enabledSubjects: ['landscape'] } }),
+			'subject is not supported'
 		);
 	});
 
-	it('rejects non-array enabled categories', () => {
+	it('rejects unsupported practice modes', () => {
 		expectBadRequest(
-			() => parseReferenceFeedRequest({ preferences: { enabledCategories: 'street' } }),
-			'preferences.enabledCategories must be an array'
+			() => parseReferenceFeedRequest({ preferences: { practiceMode: 'search' } }),
+			'preferences.practiceMode is not supported'
 		);
 	});
 
-	it('rejects empty enabled category preferences', () => {
+	it('rejects non-array enabled subjects', () => {
 		expectBadRequest(
-			() => parseReferenceFeedRequest({ preferences: { enabledCategories: [] } }),
-			'preferences.enabledCategories must include at least one category'
+			() => parseReferenceFeedRequest({ preferences: { enabledSubjects: 'places' } }),
+			'preferences.enabledSubjects must be an array'
+		);
+	});
+
+	it('rejects empty enabled subject preferences', () => {
+		expectBadRequest(
+			() => parseReferenceFeedRequest({ preferences: { enabledSubjects: [] } }),
+			'preferences.enabledSubjects must include at least one subject'
 		);
 	});
 
@@ -94,8 +122,8 @@ describe('parseReferenceFeedRequest', () => {
 			parseReferenceFeedRequest({
 				query: 'user query',
 				provider: 'external',
-				preferences: { enabledCategories: ['street'] }
+				preferences: { enabledSubjects: ['places'] }
 			})
-		).toEqual({ preferences: { enabledCategories: ['street'] } });
+		).toEqual({ preferences: { enabledSubjects: ['places'] } });
 	});
 });

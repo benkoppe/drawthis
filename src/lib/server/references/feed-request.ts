@@ -1,11 +1,17 @@
 import {
-	isReferenceCategory,
-	normalizeReferenceCategories,
+	isReferencePracticeFocus,
+	isReferencePracticeMixMode,
+	isReferenceSceneType,
+	isReferenceSubject,
+	isReferenceTopic,
+	normalizeReferencePracticeFocuses,
+	normalizeReferenceSceneTypes,
+	normalizeReferenceSubjects,
 	trimRecentReferenceIds,
-	type ReferenceCategory,
 	type ReferenceFeedContextItem,
 	type ReferenceFeedPreferences,
-	type ReferenceFeedRequest
+	type ReferenceFeedRequest,
+	type ReferenceSubjectId
 } from '$lib/references';
 import { error } from '@sveltejs/kit';
 
@@ -13,28 +19,28 @@ function isPlainObject(value: unknown): value is Record<string, unknown> {
 	return value !== null && typeof value === 'object' && !Array.isArray(value);
 }
 
-function parseEnabledCategories(value: unknown): ReferenceCategory[] {
+function parseEnabledSubjects(value: unknown): ReferenceSubjectId[] {
 	if (!Array.isArray(value)) {
-		throw error(400, 'preferences.enabledCategories must be an array');
+		throw error(400, 'preferences.enabledSubjects must be an array');
 	}
 
 	if (value.length === 0) {
-		throw error(400, 'preferences.enabledCategories must include at least one category');
+		throw error(400, 'preferences.enabledSubjects must include at least one subject');
 	}
 
-	const categories: ReferenceCategory[] = [];
+	const subjects: ReferenceSubjectId[] = [];
 
-	for (const category of value) {
-		if (!isReferenceCategory(category)) {
-			throw error(400, 'category is not supported');
+	for (const subject of value) {
+		if (!isReferenceSubject(subject)) {
+			throw error(400, 'subject is not supported');
 		}
 
-		if (!categories.includes(category)) {
-			categories.push(category);
+		if (!subjects.includes(subject)) {
+			subjects.push(subject);
 		}
 	}
 
-	return normalizeReferenceCategories(categories);
+	return normalizeReferenceSubjects(subjects);
 }
 
 function parseReferenceFeedContextItems(
@@ -57,8 +63,12 @@ function parseReferenceFeedContextItems(
 			throw error(400, `${fieldName}.id must be a non-empty string`);
 		}
 
-		if (!isReferenceCategory(reference.category)) {
-			throw error(400, `${fieldName}.category is not supported`);
+		if (!isReferenceSubject(reference.primarySubject)) {
+			throw error(400, `${fieldName}.primarySubject is not supported`);
+		}
+
+		if (reference.topic !== undefined && !isReferenceTopic(reference.topic)) {
+			throw error(400, `${fieldName}.topic is not supported`);
 		}
 
 		if (reference.providerId !== undefined && typeof reference.providerId !== 'string') {
@@ -69,14 +79,26 @@ function parseReferenceFeedContextItems(
 			throw error(400, `${fieldName}.seedId must be a string`);
 		}
 
+		if (reference.sceneTypes !== undefined && !Array.isArray(reference.sceneTypes)) {
+			throw error(400, `${fieldName}.sceneTypes must be an array`);
+		}
+
+		if (reference.practiceFocuses !== undefined && !Array.isArray(reference.practiceFocuses)) {
+			throw error(400, `${fieldName}.practiceFocuses must be an array`);
+		}
+
 		if (referenceIds.has(reference.id)) {
 			continue;
 		}
 
 		const parsedReference: ReferenceFeedContextItem = {
 			id: reference.id,
-			category: reference.category
+			primarySubject: reference.primarySubject
 		};
+
+		if (reference.topic !== undefined) {
+			parsedReference.topic = reference.topic;
+		}
 
 		if (reference.providerId !== undefined && reference.providerId.length > 0) {
 			parsedReference.providerId = reference.providerId;
@@ -84,6 +106,26 @@ function parseReferenceFeedContextItems(
 
 		if (reference.seedId !== undefined && reference.seedId.length > 0) {
 			parsedReference.seedId = reference.seedId;
+		}
+
+		if (Array.isArray(reference.sceneTypes)) {
+			const sceneTypes = normalizeReferenceSceneTypes(
+				reference.sceneTypes.filter(isReferenceSceneType)
+			);
+
+			if (sceneTypes !== undefined) {
+				parsedReference.sceneTypes = sceneTypes;
+			}
+		}
+
+		if (Array.isArray(reference.practiceFocuses)) {
+			const practiceFocuses = normalizeReferencePracticeFocuses(
+				reference.practiceFocuses.filter(isReferencePracticeFocus)
+			);
+
+			if (practiceFocuses !== undefined) {
+				parsedReference.practiceFocuses = practiceFocuses;
+			}
 		}
 
 		referenceIds.add(reference.id);
@@ -100,8 +142,16 @@ function parsePreferences(value: unknown): ReferenceFeedPreferences {
 
 	const preferences: ReferenceFeedPreferences = {};
 
-	if (value.enabledCategories !== undefined) {
-		preferences.enabledCategories = parseEnabledCategories(value.enabledCategories);
+	if (value.practiceMode !== undefined) {
+		if (!isReferencePracticeMixMode(value.practiceMode)) {
+			throw error(400, 'preferences.practiceMode is not supported');
+		}
+
+		preferences.practiceMode = value.practiceMode;
+	}
+
+	if (value.enabledSubjects !== undefined) {
+		preferences.enabledSubjects = parseEnabledSubjects(value.enabledSubjects);
 	}
 
 	return preferences;

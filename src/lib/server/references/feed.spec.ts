@@ -1,10 +1,13 @@
-import type { DrawingReference, ReferenceCategory } from '$lib/references';
+import type { DrawingReference, ReferenceSubjectId } from '$lib/references';
 import type { ProviderSearchRequest, ProviderSearchResult, ReferenceProvider } from './provider';
 import { describe, expect, it, vi } from 'vitest';
 import { getReferenceFeed } from './feed';
 import { localReferenceProvider } from './providers/local';
 
-function makeReference(id: string, category: ReferenceCategory = 'still-life'): DrawingReference {
+function makeReference(
+	id: string,
+	primarySubject: ReferenceSubjectId = 'objects'
+): DrawingReference {
 	return {
 		id: `test:${id}`,
 		provider: {
@@ -13,7 +16,7 @@ function makeReference(id: string, category: ReferenceCategory = 'still-life'): 
 			referenceId: id
 		},
 		title: id,
-		category,
+		taxonomy: { primarySubject },
 		image: {
 			url: `https://example.com/${id}.jpg`,
 			alt: id
@@ -30,7 +33,7 @@ function makeProvider(
 	search: (request: ProviderSearchRequest) => ProviderSearchResult,
 	options: {
 		id?: string;
-		categories?: readonly ReferenceCategory[];
+		subjects?: readonly ReferenceSubjectId[];
 		supportsSearch?: boolean;
 	} = {}
 ): ReferenceProvider {
@@ -38,7 +41,7 @@ function makeProvider(
 		id: options.id ?? 'test',
 		name: 'Test provider',
 		capabilities: {
-			categories: options.categories ?? ['still-life'],
+			subjects: options.subjects ?? ['objects'],
 			supportsSearch: options.supportsSearch ?? false,
 			supportsPagination: false,
 			supportsOrientation: false,
@@ -51,7 +54,7 @@ function makeProvider(
 }
 
 describe('getReferenceFeed', () => {
-	it('avoids recently seen references by trying another planned category when possible', async () => {
+	it('avoids recently seen references by trying another planned subject when possible', async () => {
 		const firstFeed = await getReferenceFeed(
 			{ count: 1 },
 			{ providers: [localReferenceProvider], random: () => 0 }
@@ -61,8 +64,7 @@ describe('getReferenceFeed', () => {
 			{ providers: [localReferenceProvider], random: () => 0 }
 		);
 
-		expect(firstFeed.references[0]?.id).toBe('local:room-interior');
-		expect(secondFeed.references[0]?.id).toBe('local:street-corner');
+		expect(secondFeed.references[0]?.id).not.toBe(firstFeed.references[0]?.id);
 	});
 
 	it('relaxes recent history after all compatible references have been seen', async () => {
@@ -80,14 +82,14 @@ describe('getReferenceFeed', () => {
 			{ providers: [localReferenceProvider], random: () => 0 }
 		);
 
-		expect(feed.references[0]?.id).toBe('local:room-interior');
+		expect(feed.references).toHaveLength(1);
 	});
 
 	it('avoids the current reference even when recent history is exhausted', async () => {
 		const feed = await getReferenceFeed(
 			{
 				count: 1,
-				currentReferenceId: 'local:room-interior',
+				currentReferenceId: 'local:hand-study',
 				recentReferenceIds: [
 					'local:room-interior',
 					'local:street-corner',
@@ -99,20 +101,20 @@ describe('getReferenceFeed', () => {
 			{ providers: [localReferenceProvider], random: () => 0 }
 		);
 
-		expect(feed.references[0]?.id).toBe('local:street-corner');
+		expect(feed.references[0]?.id).not.toBe('local:hand-study');
 	});
 
 	it('allows the current reference only when it is the only compatible option', async () => {
 		const feed = await getReferenceFeed(
 			{
 				count: 1,
-				currentReferenceId: 'local:room-interior',
-				preferences: { enabledCategories: ['interior'] }
+				currentReferenceId: 'local:hand-study',
+				preferences: { enabledSubjects: ['people'] }
 			},
 			{ providers: [localReferenceProvider], random: () => 0 }
 		);
 
-		expect(feed.references[0]?.id).toBe('local:room-interior');
+		expect(feed.references[0]?.id).toBe('local:hand-study');
 	});
 
 	it('relaxes soft recent references before hard current references', async () => {
@@ -124,7 +126,7 @@ describe('getReferenceFeed', () => {
 				count: 1,
 				currentReferenceId: currentReference.id,
 				recentReferenceIds: [recentReference.id],
-				preferences: { enabledCategories: ['still-life'] }
+				preferences: { enabledSubjects: ['objects'] }
 			},
 			{ providers: [provider], random: () => 0 }
 		);
@@ -144,7 +146,7 @@ describe('getReferenceFeed', () => {
 				count: 3,
 				currentReferenceId: currentReference.id,
 				recentReferenceIds: [recentReference.id],
-				preferences: { enabledCategories: ['still-life'] }
+				preferences: { enabledSubjects: ['objects'] }
 			},
 			{ providers: [provider], random: () => 0 }
 		);
@@ -162,7 +164,7 @@ describe('getReferenceFeed', () => {
 			id: 'available'
 		});
 		const feed = await getReferenceFeed(
-			{ count: 1, preferences: { enabledCategories: ['still-life'] } },
+			{ count: 1, preferences: { enabledSubjects: ['objects'] } },
 			{ providers: [emptyProvider, availableProvider], random: () => 0 }
 		);
 
@@ -176,12 +178,12 @@ describe('getReferenceFeed', () => {
 			() => {
 				throw providerError;
 			},
-			{ id: 'failing' }
+			{ id: 'failing', subjects: ['objects'] }
 		);
 
 		try {
 			const feed = await getReferenceFeed(
-				{ count: 1, preferences: { enabledCategories: ['still-life'] } },
+				{ count: 1, preferences: { enabledSubjects: ['objects'] } },
 				{ providers: [failingProvider, localReferenceProvider], random: () => 0 }
 			);
 
@@ -205,11 +207,11 @@ describe('getReferenceFeed', () => {
 		try {
 			await expect(
 				getReferenceFeed(
-					{ count: 1, preferences: { enabledCategories: ['still-life'] } },
+					{ count: 1, preferences: { enabledSubjects: ['objects'] } },
 					{ providers: [failingProvider], random: () => 0 }
 				)
 			).rejects.toThrow(
-				'No reference providers returned references. Provider failures: Test provider (failing): 1 failed search.'
+				'No reference providers returned references. Provider failures: Test provider (failing): 5 failed searches.'
 			);
 			expect(warning).toHaveBeenCalledWith('Reference provider "failing" failed', providerError);
 		} finally {
@@ -217,14 +219,14 @@ describe('getReferenceFeed', () => {
 		}
 	});
 
-	it('restricts references to enabled category preferences', async () => {
+	it('restricts references to enabled subject preferences', async () => {
 		const feed = await getReferenceFeed(
-			{ count: 1, preferences: { enabledCategories: ['plant'] } },
+			{ count: 1, preferences: { enabledSubjects: ['nature'] } },
 			{ providers: [localReferenceProvider], random: () => 0 }
 		);
 
 		expect(feed.references[0]?.id).toBe('local:plant-window');
-		expect(feed.references[0]?.category).toBe('plant');
+		expect(feed.references[0]?.taxonomy.primarySubject).toBe('nature');
 	});
 
 	it('passes planned queries to search-capable providers', async () => {
@@ -238,14 +240,14 @@ describe('getReferenceFeed', () => {
 		);
 
 		await getReferenceFeed(
-			{ count: 1, preferences: { enabledCategories: ['still-life'] } },
+			{ count: 1, preferences: { enabledSubjects: ['objects'] } },
 			{ providers: [provider], random: () => 0 }
 		);
 
 		expect(requests[0]).toMatchObject({
 			count: 10,
-			category: 'still-life',
-			query: 'mug and bottle still life'
+			primarySubject: 'objects',
+			query: 'mug bottle tabletop still life photo'
 		});
 	});
 
@@ -261,7 +263,7 @@ describe('getReferenceFeed', () => {
 				count: 1,
 				currentReferenceId: 'test:current',
 				recentReferenceIds: ['test:current', 'test:recent-1', 'test:recent-2'],
-				preferences: { enabledCategories: ['still-life'] }
+				preferences: { enabledSubjects: ['objects'] }
 			},
 			{ providers: [provider], random: () => 0 }
 		);
@@ -269,46 +271,49 @@ describe('getReferenceFeed', () => {
 		expect(requests[0]?.count).toBe(10);
 	});
 
-	it('sequences batch results across categories instead of clumping the first search category', async () => {
+	it('sequences batch results across subjects instead of clumping the first search subject', async () => {
 		const provider = makeProvider(
 			(request) => ({
 				references: Array.from({ length: request.count }, (_, index) =>
-					makeReference(`${request.category}-${index}`, request.category)
+					makeReference(`${request.primarySubject}-${index}`, request.primarySubject)
 				)
 			}),
 			{
-				categories: ['interior', 'street', 'figure-study', 'still-life'],
+				subjects: ['people', 'objects', 'places', 'nature'],
 				supportsSearch: true
 			}
 		);
 		const feed = await getReferenceFeed({ count: 4 }, { providers: [provider], random: () => 0 });
 
-		expect(feed.references.map((reference) => reference.category)).toEqual([
-			'interior',
-			'street',
-			'figure-study',
-			'still-life'
+		expect(feed.references.map((reference) => reference.taxonomy.primarySubject)).toEqual([
+			'people',
+			'objects',
+			'places',
+			'nature'
 		]);
 	});
 
-	it('starts a refilled batch with a different category than the visible queue tail when possible', async () => {
+	it('starts a refilled batch with a different subject than the visible queue tail when possible', async () => {
 		const provider = makeProvider(
 			(request) => ({
 				references: Array.from({ length: request.count }, (_, index) =>
-					makeReference(`${request.category}-${index}`, request.category)
+					makeReference(`${request.primarySubject}-${index}`, request.primarySubject)
 				)
 			}),
-			{ categories: ['interior', 'street'], supportsSearch: true }
+			{ subjects: ['objects', 'places'], supportsSearch: true }
 		);
 		const feed = await getReferenceFeed(
 			{
 				count: 2,
-				precedingReferences: [{ id: 'test:queued', category: 'interior', providerId: 'test' }]
+				precedingReferences: [{ id: 'test:queued', primarySubject: 'objects', providerId: 'test' }]
 			},
 			{ providers: [provider], random: () => 0 }
 		);
 
-		expect(feed.references.map((reference) => reference.category)).toEqual(['street', 'interior']);
+		expect(feed.references.map((reference) => reference.taxonomy.primarySubject)).toEqual([
+			'places',
+			'objects'
+		]);
 	});
 
 	it('rejects invalid counts', async () => {

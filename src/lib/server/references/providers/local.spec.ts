@@ -3,7 +3,7 @@ import { localReferenceProvider } from './local';
 
 describe('localReferenceProvider', () => {
 	it('normalizes local catalog items into drawing references', async () => {
-		const result = await localReferenceProvider.search({ count: 1 });
+		const result = await localReferenceProvider.search({ count: 1, primarySubject: 'places' });
 		const [reference] = result.references;
 
 		expect(reference).toMatchObject({
@@ -14,7 +14,11 @@ describe('localReferenceProvider', () => {
 				referenceId: 'room-interior'
 			},
 			title: 'Room Interior',
-			category: 'interior',
+			taxonomy: {
+				primarySubject: 'places',
+				topic: 'rooms',
+				sceneTypes: ['interior', 'everyday-life']
+			},
 			image: {
 				url: '/references/room-interior.svg',
 				alt: expect.stringContaining('room corner')
@@ -27,10 +31,10 @@ describe('localReferenceProvider', () => {
 		});
 	});
 
-	it('filters references by category', async () => {
-		const result = await localReferenceProvider.search({ count: 5, category: 'street' });
+	it('filters references by subject', async () => {
+		const result = await localReferenceProvider.search({ count: 5, primarySubject: 'people' });
 
 		expect(result.references).toHaveLength(1);
-		expect(result.references[0]?.id).toBe('local:street-corner');
+		expect(result.references[0]?.id).toBe('local:hand-study');
 	});
 });

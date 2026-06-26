@@ -1,12 +1,16 @@
 import type {
 	DrawingReference,
-	ReferenceCategory,
 	ReferenceOrientation,
-	ReferenceProviderId
+	ReferencePracticeFocus,
+	ReferenceProviderId,
+	ReferenceSceneType,
+	ReferenceSubjectId,
+	ReferenceTopicId,
+	ReferenceVisualComplexity
 } from '$lib/references';
 
 export interface ProviderCapabilities {
-	categories: readonly ReferenceCategory[];
+	subjects: readonly ReferenceSubjectId[];
 	supportsSearch: boolean;
 	supportsPagination: boolean;
 	supportsOrientation: boolean;
@@ -16,7 +20,13 @@ export interface ProviderCapabilities {
 export interface ProviderSearchRequest {
 	count: number;
 	query?: string;
-	category?: ReferenceCategory;
+	primarySubject?: ReferenceSubjectId;
+	topic?: ReferenceTopicId;
+	secondarySubjects?: readonly ReferenceSubjectId[];
+	sceneTypes?: readonly ReferenceSceneType[];
+	practiceFocuses?: readonly ReferencePracticeFocus[];
+	complexity?: ReferenceVisualComplexity;
+	seedId?: string;
 	orientation?: ReferenceOrientation;
 	cursor?: string;
 }

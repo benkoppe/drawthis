@@ -1,11 +1,14 @@
-import type { DrawingReference, ReferenceCategory } from '$lib/references';
+import type { DrawingReference, ReferenceSubjectId } from '$lib/references';
 import { describe, expect, it, vi } from 'vitest';
 import { createMemoryReferenceSearchCache } from './cache';
 import { searchReferenceProvider } from './cached-provider';
 import { ReferenceProviderHttpError } from './provider-error';
 import type { ProviderSearchRequest, ProviderSearchResult, ReferenceProvider } from './provider';
 
-function makeReference(id: string, category: ReferenceCategory = 'still-life'): DrawingReference {
+function makeReference(
+	id: string,
+	primarySubject: ReferenceSubjectId = 'objects'
+): DrawingReference {
 	return {
 		id: `test:${id}`,
 		provider: {
@@ -14,7 +17,7 @@ function makeReference(id: string, category: ReferenceCategory = 'still-life'): 
 			referenceId: id
 		},
 		title: id,
-		category,
+		taxonomy: { primarySubject },
 		image: {
 			url: `https://example.com/${id}.jpg`,
 			alt: id
@@ -35,7 +38,7 @@ function makeProvider(
 		id,
 		name: id,
 		capabilities: {
-			categories: ['still-life'],
+			subjects: ['objects'],
 			supportsSearch: true,
 			supportsPagination: true,
 			supportsOrientation: true,
@@ -49,7 +52,8 @@ function makeProvider(
 
 const request = {
 	count: 10,
-	category: 'still-life',
+	primarySubject: 'objects',
+	topic: 'still-life-groups',
 	query: 'mug and bottle still life',
 	cursor: '1'
 } satisfies ProviderSearchRequest;
@@ -71,30 +75,30 @@ describe('searchReferenceProvider', () => {
 		expect(second.references[0]?.id).toBe('test:cached');
 	});
 
-	it('does not share cached provider search metadata across categories', async () => {
+	it('does not share cached provider search metadata across subjects', async () => {
 		const search = vi.fn((searchRequest: ProviderSearchRequest) => ({
 			references: [
-				makeReference(searchRequest.category ?? 'uncategorized', searchRequest.category)
+				makeReference(searchRequest.primarySubject ?? 'objects', searchRequest.primarySubject)
 			],
 			cachePolicy: { metadataTtlSeconds: 60, canCacheImageBytes: false }
 		}));
-		const provider = makeProvider('category-cache-test-provider', search);
+		const provider = makeProvider('subject-cache-test-provider', search);
 		const cache = createMemoryReferenceSearchCache();
 
-		const interior = await searchReferenceProvider(
+		const people = await searchReferenceProvider(
 			provider,
-			{ ...request, category: 'interior' },
+			{ ...request, primarySubject: 'people' },
 			cache
 		);
-		const street = await searchReferenceProvider(
+		const places = await searchReferenceProvider(
 			provider,
-			{ ...request, category: 'street' },
+			{ ...request, primarySubject: 'places' },
 			cache
 		);
 
 		expect(search).toHaveBeenCalledTimes(2);
-		expect(interior.references[0]?.category).toBe('interior');
-		expect(street.references[0]?.category).toBe('street');
+		expect(people.references[0]?.taxonomy.primarySubject).toBe('people');
+		expect(places.references[0]?.taxonomy.primarySubject).toBe('places');
 	});
 
 	it('serves stale cached metadata when a refreshed provider search fails', async () => {

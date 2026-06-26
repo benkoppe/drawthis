@@ -5,7 +5,7 @@ export const referenceTimelineSessionStorageKey = 'drawthis:reference-timeline';
 export const maxReferenceTabTimelineEntries = 200;
 export const maxReferenceHistoryEntries = 500;
 
-const referenceHistoryDatabaseName = 'drawthis-reference-history';
+const referenceHistoryDatabaseName = 'drawthis-reference-history-v2';
 const referenceHistoryDatabaseVersion = 1;
 const referenceHistoryEntryStoreName = 'referenceHistoryEntries';
 const referenceHistoryMetaStoreName = 'referenceHistoryMeta';

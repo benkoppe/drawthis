@@ -3,30 +3,28 @@ import { expect, test, type Browser, type Page } from '@playwright/test';
 const referenceFeedSeedCookieName = 'drawthis_feed_seed';
 const appUrl = 'http://127.0.0.1:4173';
 const referenceTimelineSessionStorageKey = 'drawthis:reference-timeline';
-const referenceHistoryDatabaseName = 'drawthis-reference-history';
+const referenceHistoryDatabaseName = 'drawthis-reference-history-v2';
 const referenceHistoryDatabaseVersion = 1;
 const referenceHistoryEntryStoreName = 'referenceHistoryEntries';
 
-const categoryLabels = {
-	interior: 'Interior',
-	street: 'Street',
-	'figure-study': 'Figure Study',
-	'still-life': 'Still Life',
-	plant: 'Plant'
+const subjectLabels = {
+	people: 'People',
+	objects: 'Objects',
+	places: 'Places',
+	nature: 'Nature'
 } as const;
 
-const categoryImageUrls = {
-	interior: '/references/room-interior.svg',
-	street: '/references/street-corner.svg',
-	'figure-study': '/references/hand-study.svg',
-	'still-life': '/references/still-life.svg',
-	plant: '/references/plant-window.svg'
+const subjectImageUrls = {
+	people: '/references/hand-study.svg',
+	objects: '/references/still-life.svg',
+	places: '/references/room-interior.svg',
+	nature: '/references/plant-window.svg'
 } as const;
 
-type TestReferenceCategory = keyof typeof categoryLabels;
+type TestReferenceSubject = keyof typeof subjectLabels;
 
-function makeE2eReference(category: TestReferenceCategory, title: string, id = title) {
-	const imageUrl = categoryImageUrls[category];
+function makeE2eReference(subject: TestReferenceSubject, title: string, id = title) {
+	const imageUrl = subjectImageUrls[subject];
 
 	return {
 		id: `e2e:${id}`,
@@ -36,7 +34,9 @@ function makeE2eReference(category: TestReferenceCategory, title: string, id = t
 			referenceId: id
 		},
 		title,
-		category,
+		taxonomy: {
+			primarySubject: subject
+		},
 		image: {
 			url: imageUrl,
 			alt: title
@@ -76,21 +76,21 @@ async function getInitialReferenceTitleForSeed(browser: Browser, seed: string): 
 	}
 }
 
-function getCategoryFilterMenu(page: Page) {
-	return page.locator('[aria-label="Limit reference categories"]');
+function getPracticeMixMenu(page: Page) {
+	return page.locator('[aria-label="Choose practice mix"]');
 }
 
-function getCategoryFilterButton(page: Page) {
+function getPracticeMixButton(page: Page) {
 	return page.locator('header button[aria-haspopup="true"]');
 }
 
-function getCategoryFilterInput(page: Page, label: string) {
-	return getCategoryFilterMenu(page).locator('label').filter({ hasText: label }).locator('input');
+function getPracticeMixInput(page: Page, label: string) {
+	return getPracticeMixMenu(page).locator('label').filter({ hasText: label }).locator('input');
 }
 
-async function openCategoryFilter(page: Page): Promise<void> {
-	const button = getCategoryFilterButton(page);
-	const menu = getCategoryFilterMenu(page);
+async function openPracticeMix(page: Page): Promise<void> {
+	const button = getPracticeMixButton(page);
+	const menu = getPracticeMixMenu(page);
 
 	await expect(button).toBeVisible();
 	await expect(async () => {
@@ -99,16 +99,16 @@ async function openCategoryFilter(page: Page): Promise<void> {
 	}).toPass();
 }
 
-async function chooseOnlyCategory(page: Page, category: TestReferenceCategory): Promise<void> {
-	await openCategoryFilter(page);
-	await getCategoryFilterInput(page, 'All categories').uncheck();
-	await expect(page.getByRole('button', { name: /no categories/i })).toBeVisible();
-	await getCategoryFilterInput(page, categoryLabels[category]).check();
+async function chooseOnlySubject(page: Page, subject: TestReferenceSubject): Promise<void> {
+	await openPracticeMix(page);
+	await getPracticeMixInput(page, 'Custom: all subjects').uncheck();
+	await expect(page.getByRole('button', { name: /no subjects/i })).toBeVisible();
+	await getPracticeMixInput(page, subjectLabels[subject]).check();
 
-	await expect(page.getByRole('button', { name: /1 of 5 categories/i })).toBeVisible();
-	await expect(getCategoryFilterInput(page, categoryLabels[category])).toBeChecked();
+	await expect(page.getByRole('button', { name: /custom: 1 of 6/i })).toBeVisible();
+	await expect(getPracticeMixInput(page, subjectLabels[subject])).toBeChecked();
 	await page.keyboard.press('Escape');
-	await expect(getCategoryFilterMenu(page)).toBeHidden();
+	await expect(getPracticeMixMenu(page)).toBeHidden();
 }
 
 async function mockReferenceFeedPosts(page: Page): Promise<unknown[]> {
@@ -122,9 +122,9 @@ async function mockReferenceFeedPosts(page: Page): Promise<unknown[]> {
 		}
 
 		const body = route.request().postDataJSON() as {
-			preferences?: { enabledCategories?: TestReferenceCategory[] };
+			preferences?: { enabledSubjects?: TestReferenceSubject[] };
 		};
-		const [category = 'interior'] = body.preferences?.enabledCategories ?? ['interior'];
+		const [subject = 'places'] = body.preferences?.enabledSubjects ?? ['places'];
 		requestBodies.push(body);
 		responseIndex += 1;
 
@@ -133,9 +133,9 @@ async function mockReferenceFeedPosts(page: Page): Promise<unknown[]> {
 			body: JSON.stringify({
 				references: [
 					makeE2eReference(
-						category,
-						`Mock ${categoryLabels[category]} ${responseIndex}`,
-						`${category}-${responseIndex}`
+						subject,
+						`Mock ${subjectLabels[subject]} ${responseIndex}`,
+						`${subject}-${responseIndex}`
 					)
 				]
 			})
@@ -153,28 +153,28 @@ async function seedReferenceTimeline(page: Page): Promise<void> {
 			referenceId: 'e2e:a',
 			seenAt: '2026-01-01T00:00:00.000Z',
 			tabId,
-			reference: makeE2eReference('interior', 'Seed A', 'a')
+			reference: makeE2eReference('places', 'Seed A', 'a')
 		},
 		{
 			id: 'entry-b',
 			referenceId: 'e2e:b',
 			seenAt: '2026-01-01T00:00:01.000Z',
 			tabId,
-			reference: makeE2eReference('street', 'Seed B', 'b')
+			reference: makeE2eReference('people', 'Seed B', 'b')
 		},
 		{
 			id: 'entry-c',
 			referenceId: 'e2e:c',
 			seenAt: '2026-01-01T00:00:02.000Z',
 			tabId,
-			reference: makeE2eReference('interior', 'Seed C', 'c')
+			reference: makeE2eReference('places', 'Seed C', 'c')
 		},
 		{
 			id: 'entry-d',
 			referenceId: 'e2e:d',
 			seenAt: '2026-01-01T00:00:03.000Z',
 			tabId,
-			reference: makeE2eReference('still-life', 'Seed D', 'd')
+			reference: makeE2eReference('objects', 'Seed D', 'd')
 		}
 	];
 
@@ -327,7 +327,7 @@ test('supports keyboard shortcuts for previous and next reference navigation', a
 	await expect(referenceDescription).toHaveText(secondReferenceTitle);
 });
 
-test('applies the selected category to the next reference even when references are already queued', async ({
+test('applies the selected subject to the next reference even when references are already queued', async ({
 	page
 }) => {
 	const requestBodies = await mockReferenceFeedPosts(page);
@@ -336,29 +336,29 @@ test('applies the selected category to the next reference even when references a
 	const heading = page.getByRole('heading', { level: 1 });
 	await expect(heading).toBeVisible();
 
-	const visibleCategory = await heading.textContent();
-	const selectedCategory = (Object.entries(categoryLabels).find(
-		([, label]) => label !== visibleCategory
-	)?.[0] ?? 'plant') as TestReferenceCategory;
+	const visibleSubject = (await heading.textContent())?.split(' · ')[0];
+	const selectedSubject = (Object.entries(subjectLabels).find(
+		([, label]) => label !== visibleSubject
+	)?.[0] ?? 'nature') as TestReferenceSubject;
 
-	await chooseOnlyCategory(page, selectedCategory);
+	await chooseOnlySubject(page, selectedSubject);
 	await expect
 		.poll(() =>
 			requestBodies.some((body) => {
-				const categories = (body as { preferences?: { enabledCategories?: string[] } }).preferences
-					?.enabledCategories;
+				const subjects = (body as { preferences?: { enabledSubjects?: string[] } }).preferences
+					?.enabledSubjects;
 
-				return categories?.length === 1 && categories[0] === selectedCategory;
+				return subjects?.length === 1 && subjects[0] === selectedSubject;
 			})
 		)
 		.toBe(true);
 
 	await page.getByRole('button', { name: 'Next' }).click();
 
-	await expect(heading).toHaveText(categoryLabels[selectedCategory]);
+	await expect(heading).toContainText(subjectLabels[selectedSubject]);
 });
 
-test('branches the active tab timeline after Back and category changes without deleting durable history', async ({
+test('branches the active tab timeline after Back and subject changes without deleting durable history', async ({
 	page
 }) => {
 	await mockReferenceFeedPosts(page);
@@ -374,13 +374,13 @@ test('branches the active tab timeline after Back and category changes without d
 	await expect(referenceDescription).toHaveText('Seed C');
 	await page.getByRole('button', { name: 'Back' }).click();
 	await expect(referenceDescription).toHaveText('Seed B');
-	await expect(heading).toHaveText('Street');
+	await expect(heading).toHaveText('People');
 	await expect.poll(async () => (await readStoredHistoryEntryIds(page)).length).toBe(4);
 
-	await chooseOnlyCategory(page, 'plant');
+	await chooseOnlySubject(page, 'nature');
 	await page.getByRole('button', { name: 'Next' }).click();
 
-	await expect(heading).toHaveText('Plant');
+	await expect(heading).toContainText('Nature');
 	await expect(referenceDescription).not.toHaveText('Seed C');
 	await expect(referenceDescription).not.toHaveText('Seed D');
 
@@ -397,47 +397,43 @@ test('branches the active tab timeline after Back and category changes without d
 	expect(sessionTimeline?.entryIds).toEqual(expect.not.arrayContaining(['entry-c', 'entry-d']));
 });
 
-test('allows no selected categories as an invalid state until a category is selected', async ({
+test('allows no selected subjects as an invalid state until a subject is selected', async ({
 	page
 }) => {
 	await page.goto('/');
-	await openCategoryFilter(page);
-	await getCategoryFilterInput(page, 'All categories').uncheck();
+	await openPracticeMix(page);
+	await getPracticeMixInput(page, 'Custom: all subjects').uncheck();
 
-	await expect(page.getByRole('button', { name: /no categories/i })).toBeVisible();
-	await expect(
-		getCategoryFilterMenu(page).getByText('Select at least one category to continue.')
-	).toHaveCount(0);
-	await expect(page.getByText('Select at least one category to continue.')).toHaveCount(0);
+	await expect(page.getByRole('button', { name: /no subjects/i })).toBeVisible();
 	await expect(page.getByRole('button', { name: 'Next' })).toBeDisabled();
-	await expect(getCategoryFilterInput(page, 'Plant')).toBeEnabled();
-	await expect(getCategoryFilterInput(page, 'Plant')).not.toBeChecked();
+	await expect(getPracticeMixInput(page, 'Nature')).toBeEnabled();
+	await expect(getPracticeMixInput(page, 'Nature')).not.toBeChecked();
 
-	await getCategoryFilterInput(page, 'Plant').check();
-	await expect(page.getByRole('button', { name: /1 of 5 categories/i })).toBeVisible();
+	await getPracticeMixInput(page, 'Nature').check();
+	await expect(page.getByRole('button', { name: /custom: 1 of 6/i })).toBeVisible();
 	await expect(page.getByRole('button', { name: 'Next' })).toBeEnabled();
 });
 
-test('keeps the category filter selection after reload', async ({ page }) => {
+test('keeps the practice mix selection after reload', async ({ page }) => {
 	await page.goto('/');
-	await chooseOnlyCategory(page, 'plant');
+	await chooseOnlySubject(page, 'nature');
 
 	await page.reload();
 
-	await expect(getCategoryFilterButton(page)).toHaveText(/1 of 5 categories/i);
-	await openCategoryFilter(page);
-	await expect(getCategoryFilterInput(page, 'Plant')).toBeChecked();
-	await expect(getCategoryFilterInput(page, 'Street')).not.toBeChecked();
+	await expect(getPracticeMixButton(page)).toHaveText(/custom: 1 of 6/i);
+	await openPracticeMix(page);
+	await expect(getPracticeMixInput(page, 'Nature')).toBeChecked();
+	await expect(getPracticeMixInput(page, 'Places')).not.toBeChecked();
 });
 
-test('keeps the empty invalid category filter state after reload', async ({ page }) => {
+test('keeps the empty invalid subject selection state after reload', async ({ page }) => {
 	await page.goto('/');
-	await openCategoryFilter(page);
-	await getCategoryFilterInput(page, 'All categories').uncheck();
+	await openPracticeMix(page);
+	await getPracticeMixInput(page, 'Custom: all subjects').uncheck();
 
 	await page.reload();
 
-	await expect(getCategoryFilterButton(page)).toHaveText(/no categories/i);
+	await expect(getPracticeMixButton(page)).toHaveText(/no subjects/i);
 	await expect(page.getByRole('button', { name: 'Next' })).toBeDisabled();
 });
 

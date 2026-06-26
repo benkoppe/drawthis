@@ -39,13 +39,36 @@ export function readRecentReferenceContextsCookie(
 	return parseRecentReferenceContexts(cookies.get(referenceContextHistoryCookieName));
 }
 
+function compactReferenceContextForCookie(
+	referenceContext: ReferenceFeedContextItem
+): ReferenceFeedContextItem {
+	const compactContext: ReferenceFeedContextItem = {
+		id: referenceContext.id,
+		primarySubject: referenceContext.primarySubject
+	};
+
+	if (referenceContext.topic !== undefined) {
+		compactContext.topic = referenceContext.topic;
+	}
+
+	if (referenceContext.providerId !== undefined) {
+		compactContext.providerId = referenceContext.providerId;
+	}
+
+	if (referenceContext.seedId !== undefined) {
+		compactContext.seedId = referenceContext.seedId;
+	}
+
+	return compactContext;
+}
+
 export function writeRecentReferenceContextsCookie(
 	cookies: Pick<Cookies, 'set'>,
 	referenceContexts: readonly ReferenceFeedContextItem[]
 ): void {
 	cookies.set(
 		referenceContextHistoryCookieName,
-		serializeRecentReferenceContexts(referenceContexts),
+		serializeRecentReferenceContexts(referenceContexts.map(compactReferenceContextForCookie)),
 		referenceHistoryCookieOptions
 	);
 }

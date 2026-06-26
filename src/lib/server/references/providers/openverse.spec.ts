@@ -53,7 +53,7 @@ describe('createOpenverseReferenceProvider', () => {
 
 		const result = await provider.search({
 			count: 1,
-			category: 'interior',
+			primarySubject: 'places',
 			query: 'cluttered desk',
 			orientation: 'landscape'
 		});
@@ -78,7 +78,7 @@ describe('createOpenverseReferenceProvider', () => {
 						referenceId: 'openverse-image-1'
 					},
 					title: 'Cluttered desk by a window',
-					category: 'interior',
+					taxonomy: { primarySubject: 'places' },
 					image: {
 						url: 'https://images.example.com/desk.jpg',
 						alt: 'Cluttered desk by a window by Example Creator',
@@ -113,7 +113,7 @@ describe('createOpenverseReferenceProvider', () => {
 
 		const result = await provider.search({
 			count: 5,
-			category: 'figure-study',
+			primarySubject: 'people',
 			query: 'standing figure pose',
 			orientation: 'portrait',
 			cursor: '3'
@@ -141,21 +141,21 @@ describe('createOpenverseReferenceProvider', () => {
 
 		const result = await provider.search({
 			count: 2,
-			category: 'still-life',
+			primarySubject: 'objects',
 			query: 'tools on table'
 		});
 
 		expect(result.references).toEqual([]);
 	});
 
-	it('requires the feed planner to provide the reference category', async () => {
+	it('requires the feed planner to provide the reference subject', async () => {
 		const provider = createOpenverseReferenceProvider({
 			apiBaseUrl: 'https://api.openverse.org/v1',
 			fetch: async () => makeJsonResponse(makeOpenverseResponse())
 		});
 
 		await expect(provider.search({ count: 1, query: 'potted plant' })).rejects.toThrow(
-			'Openverse search requires a planned reference category'
+			'Openverse search requires a planned reference subject'
 		);
 	});
 
@@ -166,7 +166,7 @@ describe('createOpenverseReferenceProvider', () => {
 		});
 
 		await expect(
-			provider.search({ count: 1, category: 'plant', query: 'potted plant' })
+			provider.search({ count: 1, primarySubject: 'nature', query: 'potted plant' })
 		).rejects.toThrow('Openverse search failed with status 429');
 	});
 });

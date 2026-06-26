@@ -47,8 +47,16 @@ describe('reference history helpers', () => {
 
 	it('round-trips serialized recent reference contexts', () => {
 		const contexts = [
-			{ id: 'pexels:1', category: 'street' as const, providerId: 'pexels' },
-			{ id: 'openverse:2', category: 'plant' as const, providerId: 'openverse', seedId: 'plant' }
+			{ id: 'pexels:1', primarySubject: 'places' as const, providerId: 'pexels' },
+			{
+				id: 'openverse:2',
+				primarySubject: 'nature' as const,
+				topic: 'plants-flowers' as const,
+				providerId: 'openverse',
+				seedId: 'nature-potted-plant',
+				sceneTypes: ['interior' as const],
+				practiceFocuses: ['shape' as const]
+			}
 		];
 
 		expect(parseRecentReferenceContexts(serializeRecentReferenceContexts(contexts))).toEqual(
@@ -61,25 +69,27 @@ describe('reference history helpers', () => {
 			parseRecentReferenceContexts(
 				encodeURIComponent(
 					JSON.stringify([
-						{ id: 'pexels:1', category: 'street' },
-						{ id: '', category: 'street' },
-						{ id: 'pexels:2', category: 'unsupported' },
+						{ id: 'pexels:1', primarySubject: 'places' },
+						{ id: '', primarySubject: 'places' },
+						{ id: 'pexels:2', primarySubject: 'unsupported' },
 						42
 					])
 				)
 			)
-		).toEqual([{ id: 'pexels:1', category: 'street' }]);
+		).toEqual([{ id: 'pexels:1', primarySubject: 'places' }]);
 	});
 
 	it('dedupes reference contexts and trims them to the context history limit', () => {
 		const contexts = Array.from({ length: maxRecentReferenceContexts + 5 }, (_, index) => ({
 			id: String(index),
-			category: 'interior' as const
+			primarySubject: 'places' as const
 		}));
 
-		expect(mergeRecentReferenceContexts(contexts, [{ id: '10', category: 'plant' }])).toEqual([
+		expect(
+			mergeRecentReferenceContexts(contexts, [{ id: '10', primarySubject: 'nature' }])
+		).toEqual([
 			...contexts.slice(5).filter(({ id }) => id !== '10'),
-			{ id: '10', category: 'plant' }
+			{ id: '10', primarySubject: 'nature' }
 		]);
 	});
 });

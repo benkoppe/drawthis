@@ -1,8 +1,4 @@
-import {
-	referenceCategories,
-	type DrawingReference,
-	type ReferenceCategory
-} from '$lib/references';
+import { referenceSubjects, type DrawingReference } from '$lib/references';
 import type { OpenverseProviderConfig } from '$lib/server/config';
 import { parseRetryAfterSeconds, ReferenceProviderHttpError } from '../provider-error';
 import type { ProviderSearchRequest, ProviderSearchResult, ReferenceProvider } from '../provider';
@@ -173,7 +169,16 @@ function makeAltText(image: OpenverseImage): string {
 	return image.title ?? 'Openverse drawing reference image';
 }
 
-function toDrawingReference(image: OpenverseImage, category: ReferenceCategory): DrawingReference {
+function toDrawingReference(
+	image: OpenverseImage,
+	request: ProviderSearchRequest
+): DrawingReference {
+	const primarySubject = request.primarySubject;
+
+	if (primarySubject === undefined) {
+		throw new Error('Openverse search requires a planned reference subject');
+	}
+
 	const licenseName = formatLicenseName(image.license, image.licenseVersion);
 	const referenceImage: DrawingReference['image'] = {
 		url: image.imageUrl,
@@ -209,6 +214,20 @@ function toDrawingReference(image: OpenverseImage, category: ReferenceCategory):
 		attribution.licenseUrl = image.licenseUrl;
 	}
 
+	const taxonomy: DrawingReference['taxonomy'] = {
+		primarySubject,
+		secondarySubjects: request.secondarySubjects,
+		sceneTypes: request.sceneTypes
+	};
+	const training: DrawingReference['training'] = {
+		focuses: request.practiceFocuses,
+		complexity: request.complexity
+	};
+
+	if (request.topic !== undefined) {
+		taxonomy.topic = request.topic;
+	}
+
 	return {
 		id: `${openverseProviderId}:${image.id}`,
 		provider: {
@@ -217,7 +236,9 @@ function toDrawingReference(image: OpenverseImage, category: ReferenceCategory):
 			referenceId: image.id
 		},
 		title: image.title ?? 'Untitled Openverse image',
-		category,
+		taxonomy,
+		training,
+		selection: request.seedId === undefined ? undefined : { seedId: request.seedId },
 		image: referenceImage,
 		attribution
 	};
@@ -228,10 +249,8 @@ async function searchOpenverse(
 	fetchFunction: FetchFunction,
 	request: ProviderSearchRequest
 ): Promise<ProviderSearchResult> {
-	const category = request.category;
-
-	if (category === undefined) {
-		throw new Error('Openverse search requires a planned reference category');
+	if (request.primarySubject === undefined) {
+		throw new Error('Openverse search requires a planned reference subject');
 	}
 
 	const response = await fetchFunction(buildOpenverseSearchUrl(config, request), {
@@ -255,7 +274,7 @@ async function searchOpenverse(
 			: undefined;
 
 	return {
-		references: parsedResponse.results.map((image) => toDrawingReference(image, category)),
+		references: parsedResponse.results.map((image) => toDrawingReference(image, request)),
 		nextCursor,
 		cachePolicy: {
 			metadataTtlSeconds: openverseMetadataTtlSeconds,
@@ -273,7 +292,7 @@ export function createOpenverseReferenceProvider(
 		id: openverseProviderId,
 		name: openverseProviderName,
 		capabilities: {
-			categories: referenceCategories,
+			subjects: referenceSubjects,
 			supportsSearch: true,
 			supportsPagination: true,
 			supportsOrientation: true,

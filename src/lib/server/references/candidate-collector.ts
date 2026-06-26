@@ -33,13 +33,13 @@ function getReferenceSelectionRank(
 	return referenceSelectionRanks.preferred;
 }
 
-function hasEnoughPreferredCategoryCoverage(
+function hasEnoughPreferredSubjectCoverage(
 	candidates: Iterable<ReferenceCandidate>,
 	count: number,
-	plannedCategoryCount: number
+	plannedSubjectCount: number
 ): boolean {
 	let preferredCandidateCount = 0;
-	const preferredCategories = new Set<string>();
+	const preferredSubjects = new Set<string>();
 
 	for (const candidate of candidates) {
 		if (candidate.rank !== referenceSelectionRanks.preferred) {
@@ -47,17 +47,17 @@ function hasEnoughPreferredCategoryCoverage(
 		}
 
 		preferredCandidateCount += 1;
-		preferredCategories.add(candidate.reference.category);
+		preferredSubjects.add(candidate.reference.taxonomy.primarySubject);
 	}
 
 	return (
 		preferredCandidateCount >= count &&
-		preferredCategories.size >= Math.min(count, plannedCategoryCount)
+		preferredSubjects.size >= Math.min(count, plannedSubjectCount)
 	);
 }
 
-function getPlannedCategoryCount(searches: readonly PlannedProviderSearch[]): number {
-	return new Set(searches.map((search) => search.category)).size;
+function getPlannedSubjectCount(searches: readonly PlannedProviderSearch[]): number {
+	return new Set(searches.map((search) => search.primarySubject)).size;
 }
 
 export async function collectReferenceCandidates(
@@ -67,7 +67,7 @@ export async function collectReferenceCandidates(
 	searchCache: ReferenceSearchCache | undefined
 ): Promise<ReferenceCandidate[]> {
 	const candidatesByReferenceId = new Map<string, ReferenceCandidate>();
-	const plannedCategoryCount = getPlannedCategoryCount(searches);
+	const plannedSubjectCount = getPlannedSubjectCount(searches);
 	const providerFailures: ReferenceProviderFailureAttempt[] = [];
 	let order = 0;
 
@@ -91,9 +91,14 @@ export async function collectReferenceCandidates(
 				continue;
 			}
 
+			const referenceWithSelectionContext = {
+				...reference,
+				selection: { ...reference.selection, seedId: reference.selection?.seedId ?? search.seed.id }
+			};
+
 			candidatesByReferenceId.set(reference.id, {
-				reference,
-				rank: getReferenceSelectionRank(reference, avoidancePolicy),
+				reference: referenceWithSelectionContext,
+				rank: getReferenceSelectionRank(referenceWithSelectionContext, avoidancePolicy),
 				order,
 				seedId: search.seed.id
 			});
@@ -101,10 +106,10 @@ export async function collectReferenceCandidates(
 		}
 
 		if (
-			hasEnoughPreferredCategoryCoverage(
+			hasEnoughPreferredSubjectCoverage(
 				candidatesByReferenceId.values(),
 				count,
-				plannedCategoryCount
+				plannedSubjectCount
 			)
 		) {
 			break;

@@ -1,8 +1,4 @@
-import {
-	referenceCategories,
-	type DrawingReference,
-	type ReferenceCategory
-} from '$lib/references';
+import { referenceSubjects, type DrawingReference } from '$lib/references';
 import type { PexelsProviderConfig } from '$lib/server/config';
 import { parseRetryAfterSeconds, ReferenceProviderHttpError } from '../provider-error';
 import type { ProviderSearchRequest, ProviderSearchResult, ReferenceProvider } from '../provider';
@@ -193,7 +189,13 @@ function makeAltText(photo: PexelsPhoto): string {
 	return photo.alt ?? makeTitle(photo);
 }
 
-function toDrawingReference(photo: PexelsPhoto, category: ReferenceCategory): DrawingReference {
+function toDrawingReference(photo: PexelsPhoto, request: ProviderSearchRequest): DrawingReference {
+	const primarySubject = request.primarySubject;
+
+	if (primarySubject === undefined) {
+		throw new Error('Pexels search requires a planned reference subject');
+	}
+
 	const referenceImage: DrawingReference['image'] = {
 		url: photo.imageUrl,
 		alt: makeAltText(photo)
@@ -222,6 +224,20 @@ function toDrawingReference(photo: PexelsPhoto, category: ReferenceCategory): Dr
 		attribution.creatorUrl = photo.photographerUrl;
 	}
 
+	const taxonomy: DrawingReference['taxonomy'] = {
+		primarySubject,
+		secondarySubjects: request.secondarySubjects,
+		sceneTypes: request.sceneTypes
+	};
+	const training: DrawingReference['training'] = {
+		focuses: request.practiceFocuses,
+		complexity: request.complexity
+	};
+
+	if (request.topic !== undefined) {
+		taxonomy.topic = request.topic;
+	}
+
 	return {
 		id: `${pexelsProviderId}:${photo.id}`,
 		provider: {
@@ -230,7 +246,9 @@ function toDrawingReference(photo: PexelsPhoto, category: ReferenceCategory): Dr
 			referenceId: photo.id
 		},
 		title: makeTitle(photo),
-		category,
+		taxonomy,
+		training,
+		selection: request.seedId === undefined ? undefined : { seedId: request.seedId },
 		image: referenceImage,
 		attribution
 	};
@@ -260,10 +278,8 @@ async function searchPexels(
 	fetchFunction: FetchFunction,
 	request: ProviderSearchRequest
 ): Promise<ProviderSearchResult> {
-	const category = request.category;
-
-	if (category === undefined) {
-		throw new Error('Pexels search requires a planned reference category');
+	if (request.primarySubject === undefined) {
+		throw new Error('Pexels search requires a planned reference subject');
 	}
 
 	const response = await fetchFunction(buildPexelsSearchUrl(config, request), {
@@ -284,7 +300,7 @@ async function searchPexels(
 	const parsedResponse = parsePexelsSearchResponse(body);
 
 	return {
-		references: parsedResponse.photos.map((photo) => toDrawingReference(photo, category)),
+		references: parsedResponse.photos.map((photo) => toDrawingReference(photo, request)),
 		nextCursor: getNextCursor(parsedResponse),
 		cachePolicy: {
 			metadataTtlSeconds: pexelsMetadataTtlSeconds,
@@ -302,7 +318,7 @@ export function createPexelsReferenceProvider(
 		id: pexelsProviderId,
 		name: pexelsProviderName,
 		capabilities: {
-			categories: referenceCategories,
+			subjects: referenceSubjects,
 			supportsSearch: true,
 			supportsPagination: true,
 			supportsOrientation: true,

@@ -1,4 +1,4 @@
-import type { ReferenceCategory, ReferenceFeedRequest } from '$lib/references';
+import type { ReferenceFeedRequest, ReferenceSubjectId } from '$lib/references';
 import { describe, expect, it } from 'vitest';
 import { createReferenceFeedPlan } from './feed-planner';
 import type { ReferenceFeedPolicy } from './feed-policy';
@@ -7,7 +7,7 @@ import type { ReferenceProvider } from './provider';
 function makeProvider(
 	overrides: Partial<ReferenceProvider> & {
 		id: string;
-		categories?: readonly ReferenceCategory[];
+		subjects?: readonly ReferenceSubjectId[];
 		supportsSearch?: boolean;
 		supportsPagination?: boolean;
 		supportsOrientation?: boolean;
@@ -17,7 +17,7 @@ function makeProvider(
 		id: overrides.id,
 		name: overrides.name ?? overrides.id,
 		capabilities: overrides.capabilities ?? {
-			categories: overrides.categories ?? ['interior'],
+			subjects: overrides.subjects ?? ['objects'],
 			supportsSearch: overrides.supportsSearch ?? false,
 			supportsPagination: overrides.supportsPagination ?? false,
 			supportsOrientation: overrides.supportsOrientation ?? false,
@@ -29,24 +29,28 @@ function makeProvider(
 }
 
 const testPolicy: ReferenceFeedPolicy = {
-	categories: [
+	seeds: [
 		{
-			category: 'interior',
-			weight: 1,
-			subjectSeeds: [
-				{ id: 'interior-desk', category: 'interior', query: 'cluttered desk' },
-				{
-					id: 'interior-kitchen',
-					category: 'interior',
-					query: 'ordinary kitchen',
-					orientation: 'landscape'
-				}
-			]
+			id: 'objects-desk',
+			label: 'Desk objects',
+			primarySubject: 'objects',
+			topic: 'household-objects',
+			query: 'cluttered desk objects'
 		},
 		{
-			category: 'street',
-			weight: 9,
-			subjectSeeds: [{ id: 'street-stop', category: 'street', query: 'transit stop' }]
+			id: 'places-kitchen',
+			label: 'Kitchen',
+			primarySubject: 'places',
+			topic: 'kitchens-workspaces',
+			query: 'ordinary kitchen',
+			orientation: 'landscape'
+		},
+		{
+			id: 'people-gesture',
+			label: 'Gesture',
+			primarySubject: 'people',
+			topic: 'gesture-action',
+			query: 'gesture pose'
 		}
 	],
 	providerWeights: {
@@ -56,10 +60,10 @@ const testPolicy: ReferenceFeedPolicy = {
 };
 
 describe('createReferenceFeedPlan', () => {
-	it('allows every policy category when preferences are omitted', () => {
+	it('allows every policy subject when preferences are omitted', () => {
 		const provider = makeProvider({
 			id: 'search',
-			categories: ['interior', 'street'],
+			subjects: ['objects', 'places', 'people'],
 			supportsSearch: true
 		});
 		const plan = createReferenceFeedPlan(
@@ -67,30 +71,30 @@ describe('createReferenceFeedPlan', () => {
 			{ providers: [provider], policy: testPolicy, searchCount: 1, random: () => 0 }
 		);
 
-		expect(new Set(plan.searches.map((search) => search.category))).toEqual(
-			new Set(['interior', 'street'])
+		expect(new Set(plan.searches.map((search) => search.primarySubject))).toEqual(
+			new Set(['objects', 'places', 'people'])
 		);
 	});
 
-	it('restricts planned categories to enabled category preferences', () => {
+	it('restricts planned subjects to enabled subject preferences', () => {
 		const provider = makeProvider({
 			id: 'search',
-			categories: ['interior', 'street'],
+			subjects: ['objects', 'places'],
 			supportsSearch: true
 		});
 		const plan = createReferenceFeedPlan(
-			{ preferences: { enabledCategories: ['street'] } },
+			{ preferences: { enabledSubjects: ['places'] } },
 			{ providers: [provider], policy: testPolicy, searchCount: 1, random: () => 0 }
 		);
 
-		expect(plan.searches.map((search) => search.category)).toEqual(['street']);
+		expect(plan.searches.map((search) => search.primarySubject)).toEqual(['places']);
 	});
 
 	it('passes generated queries only to search-capable providers', () => {
 		const searchProvider = makeProvider({ id: 'search', supportsSearch: true });
 		const localProvider = makeProvider({ id: 'local', supportsSearch: false });
 		const plan = createReferenceFeedPlan(
-			{ preferences: { enabledCategories: ['interior'] } },
+			{ preferences: { enabledSubjects: ['objects'] } },
 			{
 				providers: [searchProvider, localProvider],
 				policy: testPolicy,
@@ -100,34 +104,40 @@ describe('createReferenceFeedPlan', () => {
 		);
 
 		expect(plan.searches.find((search) => search.provider.id === 'search')?.request).toMatchObject({
-			category: 'interior',
+			primarySubject: 'objects',
 			count: 3,
-			query: 'cluttered desk'
+			query: 'cluttered desk objects',
+			seedId: 'objects-desk'
 		});
-		expect(plan.searches.find((search) => search.provider.id === 'local')?.request).toEqual({
-			category: 'interior',
-			count: 3
+		expect(plan.searches.find((search) => search.provider.id === 'local')?.request).toMatchObject({
+			primarySubject: 'objects',
+			count: 3,
+			seedId: 'objects-desk'
 		});
+		expect(
+			plan.searches.find((search) => search.provider.id === 'local')?.request.query
+		).toBeUndefined();
 	});
 
 	it('passes seed orientation only to orientation-capable providers', () => {
 		const provider = makeProvider({
 			id: 'search',
+			subjects: ['places'],
 			supportsSearch: true,
 			supportsOrientation: true
 		});
 		const plan = createReferenceFeedPlan(
-			{ preferences: { enabledCategories: ['interior'] } },
-			{ providers: [provider], policy: testPolicy, searchCount: 1, random: () => 0.75 }
+			{ preferences: { enabledSubjects: ['places'] } },
+			{ providers: [provider], policy: testPolicy, searchCount: 1, random: () => 0 }
 		);
 
 		expect(plan.searches[0]?.request.orientation).toBe('landscape');
 	});
 
-	it('excludes providers that do not support enabled categories', () => {
-		const unsupportedProvider = makeProvider({ id: 'unsupported', categories: ['still-life'] });
+	it('excludes providers that do not support enabled subjects', () => {
+		const unsupportedProvider = makeProvider({ id: 'unsupported', subjects: ['people'] });
 		const plan = createReferenceFeedPlan(
-			{ preferences: { enabledCategories: ['interior'] } },
+			{ preferences: { enabledSubjects: ['places'] } },
 			{ providers: [unsupportedProvider], policy: testPolicy, searchCount: 1, random: () => 0 }
 		);
 
@@ -139,10 +149,10 @@ describe('createReferenceFeedPlan', () => {
 		const openverseProvider = makeProvider({ id: 'openverse', supportsSearch: true });
 		const localProvider = makeProvider({ id: 'local', supportsSearch: false });
 		const policyWithoutProviderWeights: ReferenceFeedPolicy = {
-			categories: testPolicy.categories.slice(0, 1)
+			seeds: testPolicy.seeds.slice(0, 1)
 		};
 		const plan = createReferenceFeedPlan(
-			{ preferences: { enabledCategories: ['interior'] } },
+			{ preferences: { enabledSubjects: ['objects'] } },
 			{
 				providers: [pexelsProvider, openverseProvider, localProvider],
 				policy: policyWithoutProviderWeights,
@@ -160,27 +170,34 @@ describe('createReferenceFeedPlan', () => {
 
 	it('dedupes equivalent requests for providers that do not support search', () => {
 		const localProvider = makeProvider({ id: 'local', supportsSearch: false });
+		const policy: ReferenceFeedPolicy = {
+			seeds: [
+				...testPolicy.seeds.slice(0, 1),
+				{ ...testPolicy.seeds[0], id: 'objects-desk-copy', query: 'different query' }
+			]
+		};
 		const plan = createReferenceFeedPlan(
-			{ preferences: { enabledCategories: ['interior'] } },
-			{ providers: [localProvider], policy: testPolicy, searchCount: 1, random: () => 0 }
+			{ preferences: { enabledSubjects: ['objects'] } },
+			{ providers: [localProvider], policy, searchCount: 1, random: () => 0 }
 		);
 
 		expect(plan.searches).toHaveLength(1);
-		expect(plan.searches[0]?.request).toEqual({ count: 1, category: 'interior' });
+		expect(plan.searches[0]?.request).toMatchObject({
+			count: 1,
+			primarySubject: 'objects'
+		});
 	});
 
 	it('adds a deterministic initial cursor for pagination-capable providers with pagination policy', () => {
 		const provider = makeProvider({ id: 'pexels', supportsSearch: true, supportsPagination: true });
 		const policy: ReferenceFeedPolicy = {
-			categories: [
-				{ category: 'interior', subjectSeeds: [testPolicy.categories[0].subjectSeeds[0]] }
-			],
+			seeds: [testPolicy.seeds[0]],
 			providerPagination: {
 				pexels: { initialCursorPageMin: 3, initialCursorPageMax: 7 }
 			}
 		};
 		const plan = createReferenceFeedPlan(
-			{ preferences: { enabledCategories: ['interior'] } },
+			{ preferences: { enabledSubjects: ['objects'] } },
 			{ providers: [provider], policy, searchCount: 1, random: () => 0.5 }
 		);
 
@@ -195,15 +212,13 @@ describe('createReferenceFeedPlan', () => {
 		});
 		const providerWithoutPagination = makeProvider({ id: 'local', supportsPagination: false });
 		const policy: ReferenceFeedPolicy = {
-			categories: [
-				{ category: 'interior', subjectSeeds: [testPolicy.categories[0].subjectSeeds[0]] }
-			],
+			seeds: [testPolicy.seeds[0]],
 			providerPagination: {
 				pexels: { initialCursorPageMin: 1, initialCursorPageMax: 10 }
 			}
 		};
 		const plan = createReferenceFeedPlan(
-			{ preferences: { enabledCategories: ['interior'] } },
+			{ preferences: { enabledSubjects: ['objects'] } },
 			{
 				providers: [paginationProviderWithoutPolicy, providerWithoutPagination],
 				policy,
@@ -215,24 +230,28 @@ describe('createReferenceFeedPlan', () => {
 		expect(plan.searches.map((search) => search.request.cursor)).toEqual([undefined, undefined]);
 	});
 
-	it('uses injected randomness for deterministic weighted ordering', () => {
+	it('uses injected randomness for deterministic weighted subject ordering', () => {
 		const provider = makeProvider({
 			id: 'search',
-			categories: ['interior', 'street'],
+			subjects: ['objects', 'places'],
 			supportsSearch: true
 		});
+		const weightedPolicy: ReferenceFeedPolicy = {
+			seeds: testPolicy.seeds.slice(0, 2),
+			practiceModes: [{ mode: 'balanced', subjectWeights: { places: 9, objects: 1 } }]
+		};
 		const plan = createReferenceFeedPlan(
 			{},
-			{ providers: [provider], policy: testPolicy, searchCount: 1, random: () => 0.99 }
+			{ providers: [provider], policy: weightedPolicy, searchCount: 1, random: () => 0.99 }
 		);
 
-		expect(plan.searches[0]?.category).toBe('street');
+		expect(plan.searches[0]?.primarySubject).toBe('places');
 	});
 
 	it('ignores query-like fields on the public feed request', () => {
 		const provider = makeProvider({ id: 'search', supportsSearch: true });
 		const request = {
-			preferences: { enabledCategories: ['interior'] },
+			preferences: { enabledSubjects: ['objects'] },
 			query: 'user supplied query'
 		} as unknown as ReferenceFeedRequest;
 		const plan = createReferenceFeedPlan(request, {
@@ -242,6 +261,6 @@ describe('createReferenceFeedPlan', () => {
 			random: () => 0
 		});
 
-		expect(plan.searches[0]?.request.query).toBe('cluttered desk');
+		expect(plan.searches[0]?.request.query).toBe('cluttered desk objects');
 	});
 });

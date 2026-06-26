@@ -1,8 +1,8 @@
-import type { DrawingReference, ReferenceCategory } from '$lib/references';
+import type { DrawingReference, ReferenceSubjectId } from '$lib/references';
 import { describe, expect, it } from 'vitest';
 import { referenceSelectionRanks, sequenceReferenceCandidates } from './feed-sequencer';
 
-function makeReference(id: string, category: ReferenceCategory): DrawingReference {
+function makeReference(id: string, primarySubject: ReferenceSubjectId): DrawingReference {
 	return {
 		id: `test:${id}`,
 		provider: {
@@ -11,7 +11,7 @@ function makeReference(id: string, category: ReferenceCategory): DrawingReferenc
 			referenceId: id
 		},
 		title: id,
-		category,
+		taxonomy: { primarySubject },
 		image: {
 			url: `https://example.com/${id}.jpg`,
 			alt: id
@@ -24,55 +24,58 @@ function makeReference(id: string, category: ReferenceCategory): DrawingReferenc
 	};
 }
 
-function makeCandidate(id: string, category: ReferenceCategory, order: number) {
+function makeCandidate(id: string, primarySubject: ReferenceSubjectId, order: number) {
 	return {
-		reference: makeReference(id, category),
+		reference: makeReference(id, primarySubject),
 		rank: referenceSelectionRanks.preferred,
 		order
 	};
 }
 
 describe('sequenceReferenceCandidates', () => {
-	it('avoids adjacent category repeats when another equally viable category is available', () => {
+	it('avoids adjacent subject repeats when another equally viable subject is available', () => {
 		const references = sequenceReferenceCandidates(
 			[
-				makeCandidate('still-life-1', 'still-life', 0),
-				makeCandidate('still-life-2', 'still-life', 1),
-				makeCandidate('street-1', 'street', 2),
-				makeCandidate('plant-1', 'plant', 3)
+				makeCandidate('objects-1', 'objects', 0),
+				makeCandidate('objects-2', 'objects', 1),
+				makeCandidate('places-1', 'places', 2),
+				makeCandidate('nature-1', 'nature', 3)
 			],
 			{ count: 4 }
 		);
 
-		expect(references.map((reference) => reference.category)).toEqual([
-			'still-life',
-			'street',
-			'plant',
-			'still-life'
+		expect(references.map((reference) => reference.taxonomy.primarySubject)).toEqual([
+			'objects',
+			'places',
+			'nature',
+			'objects'
 		]);
 	});
 
 	it('continues from the preceding queue context', () => {
 		const references = sequenceReferenceCandidates(
-			[makeCandidate('still-life-1', 'still-life', 0), makeCandidate('street-1', 'street', 1)],
+			[makeCandidate('objects-1', 'objects', 0), makeCandidate('places-1', 'places', 1)],
 			{
 				count: 2,
-				precedingReferences: [{ id: 'test:current', category: 'still-life' }]
+				precedingReferences: [{ id: 'test:current', primarySubject: 'objects' }]
 			}
 		);
 
-		expect(references.map((reference) => reference.category)).toEqual(['street', 'still-life']);
+		expect(references.map((reference) => reference.taxonomy.primarySubject)).toEqual([
+			'places',
+			'objects'
+		]);
 	});
 
-	it('allows adjacent repeats when no alternative category remains', () => {
+	it('allows adjacent repeats when no alternative subject remains', () => {
 		const references = sequenceReferenceCandidates(
-			[
-				makeCandidate('still-life-1', 'still-life', 0),
-				makeCandidate('still-life-2', 'still-life', 1)
-			],
+			[makeCandidate('objects-1', 'objects', 0), makeCandidate('objects-2', 'objects', 1)],
 			{ count: 2 }
 		);
 
-		expect(references.map((reference) => reference.category)).toEqual(['still-life', 'still-life']);
+		expect(references.map((reference) => reference.taxonomy.primarySubject)).toEqual([
+			'objects',
+			'objects'
+		]);
 	});
 });

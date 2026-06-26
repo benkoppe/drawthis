@@ -1,11 +1,18 @@
-import { isReferenceCategory } from './categories';
+import {
+	isReferencePracticeFocus,
+	isReferenceSceneType,
+	isReferenceSubject,
+	isReferenceTopic,
+	normalizeReferencePracticeFocuses,
+	normalizeReferenceSceneTypes
+} from './taxonomy';
 import { maxRecentReferenceContexts, trimRecentReferenceIds } from './feed';
 import type { DrawingReference, ReferenceFeedContextItem } from './types';
 
-export const referenceHistoryCookieName = 'drawthis_recent_references';
-export const referenceContextHistoryCookieName = 'drawthis_recent_reference_contexts';
-export const referenceHistoryStorageKey = 'drawthis:recent-references';
-export const referenceContextHistoryStorageKey = 'drawthis:recent-reference-contexts';
+export const referenceHistoryCookieName = 'drawthis_recent_reference_ids_v2';
+export const referenceContextHistoryCookieName = 'drawthis_recent_reference_contexts_v2';
+export const referenceHistoryStorageKey = 'drawthis:recent-reference-ids:v2';
+export const referenceContextHistoryStorageKey = 'drawthis:recent-reference-contexts:v2';
 
 function sanitizeReferenceIds(referenceIds: readonly unknown[]): string[] {
 	return referenceIds.flatMap((referenceId) => {
@@ -23,11 +30,29 @@ function isRecord(value: unknown): value is Record<string, unknown> {
 }
 
 export function toReferenceFeedContextItem(reference: DrawingReference): ReferenceFeedContextItem {
-	return {
+	const context: ReferenceFeedContextItem = {
 		id: reference.id,
-		category: reference.category,
+		primarySubject: reference.taxonomy.primarySubject,
 		providerId: reference.provider.id
 	};
+
+	if (reference.taxonomy.topic !== undefined) {
+		context.topic = reference.taxonomy.topic;
+	}
+
+	if (reference.selection?.seedId !== undefined) {
+		context.seedId = reference.selection.seedId;
+	}
+
+	if (reference.taxonomy.sceneTypes !== undefined) {
+		context.sceneTypes = reference.taxonomy.sceneTypes;
+	}
+
+	if (reference.training?.focuses !== undefined) {
+		context.practiceFocuses = reference.training.focuses;
+	}
+
+	return context;
 }
 
 function sanitizeReferenceContexts(
@@ -40,14 +65,18 @@ function sanitizeReferenceContexts(
 
 		const id = typeof referenceContext.id === 'string' ? referenceContext.id.trim() : '';
 
-		if (id.length === 0 || !isReferenceCategory(referenceContext.category)) {
+		if (id.length === 0 || !isReferenceSubject(referenceContext.primarySubject)) {
 			return [];
 		}
 
 		const sanitizedContext: ReferenceFeedContextItem = {
 			id,
-			category: referenceContext.category
+			primarySubject: referenceContext.primarySubject
 		};
+
+		if (isReferenceTopic(referenceContext.topic)) {
+			sanitizedContext.topic = referenceContext.topic;
+		}
 
 		if (typeof referenceContext.providerId === 'string' && referenceContext.providerId.length > 0) {
 			sanitizedContext.providerId = referenceContext.providerId;
@@ -55,6 +84,26 @@ function sanitizeReferenceContexts(
 
 		if (typeof referenceContext.seedId === 'string' && referenceContext.seedId.length > 0) {
 			sanitizedContext.seedId = referenceContext.seedId;
+		}
+
+		if (Array.isArray(referenceContext.sceneTypes)) {
+			const sceneTypes = normalizeReferenceSceneTypes(
+				referenceContext.sceneTypes.filter(isReferenceSceneType)
+			);
+
+			if (sceneTypes !== undefined) {
+				sanitizedContext.sceneTypes = sceneTypes;
+			}
+		}
+
+		if (Array.isArray(referenceContext.practiceFocuses)) {
+			const practiceFocuses = normalizeReferencePracticeFocuses(
+				referenceContext.practiceFocuses.filter(isReferencePracticeFocus)
+			);
+
+			if (practiceFocuses !== undefined) {
+				sanitizedContext.practiceFocuses = practiceFocuses;
+			}
 		}
 
 		return [sanitizedContext];

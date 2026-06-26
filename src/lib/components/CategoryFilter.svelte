@@ -18,6 +18,7 @@
 	}: { enabledSubjects: ReferenceSubjectId[]; enabledTopics: ReferenceTopicId[] } = $props();
 
 	let isOpen = $state(false);
+	let expandedSubjects = $state<ReferenceSubjectId[]>([]);
 	let wrapper = $state<HTMLElement>();
 	let triggerButton = $state<HTMLButtonElement>();
 	let allCategoriesCheckbox = $state<HTMLInputElement>();
@@ -72,10 +73,31 @@
 		}
 	}
 
+	function getTopicGroupId(subject: ReferenceSubjectId): string {
+		return `reference-category-topics-${subject}`;
+	}
+
+	function isSubjectExpanded(subject: ReferenceSubjectId): boolean {
+		return expandedSubjects.includes(subject);
+	}
+
+	function toggleSubjectExpanded(subject: ReferenceSubjectId): void {
+		expandedSubjects = isSubjectExpanded(subject)
+			? expandedSubjects.filter((candidate) => candidate !== subject)
+			: [...expandedSubjects, subject];
+	}
+
 	function getEnabledTopicCount(subject: ReferenceSubjectId): number {
 		return getReferenceSubjectTopics(subject).filter((topic) =>
 			normalizedEnabledTopics.includes(topic)
 		).length;
+	}
+
+	function getSubjectTopicSummary(subject: ReferenceSubjectId): string {
+		const enabledTopicCount = getEnabledTopicCount(subject);
+		const totalTopicCount = referenceTopicsBySubject[subject].length;
+
+		return `${enabledTopicCount}/${totalTopicCount}`;
 	}
 
 	function isSubjectFullyEnabled(subject: ReferenceSubjectId): boolean {
@@ -237,43 +259,72 @@
 				All categories
 			</label>
 
-			<hr class="my-1 border-gray-100" />
+			<hr class="my-2 border-gray-300" />
 
 			{#each referenceSubjects as subject (subject)}
 				<div class="rounded-md py-1">
-					<label
-						class="flex cursor-pointer items-center gap-2.5 rounded-md px-2.5 py-1.5 text-sm font-semibold text-gray-900 hover:bg-gray-50"
-					>
-						<input
-							type="checkbox"
-							class="size-4 accent-gray-900"
-							checked={isSubjectFullyEnabled(subject)}
-							{@attach (node) => {
-								subjectCheckboxes[subject] = node;
-								return () => {
-									delete subjectCheckboxes[subject];
-								};
-							}}
-							onchange={(event) => setSubjectEnabled(subject, event.currentTarget.checked)}
-						/>
-						{referenceSubjectLabels[subject]}
-					</label>
+					<div class="flex items-center gap-1 rounded-md hover:bg-gray-50">
+						<label
+							class="flex min-w-0 flex-1 cursor-pointer items-center gap-2.5 rounded-md py-1.5 pr-1 pl-2.5 text-sm font-semibold text-gray-900"
+						>
+							<input
+								type="checkbox"
+								class="size-4 accent-gray-900"
+								checked={isSubjectFullyEnabled(subject)}
+								{@attach (node) => {
+									subjectCheckboxes[subject] = node;
+									return () => {
+										delete subjectCheckboxes[subject];
+									};
+								}}
+								onchange={(event) => setSubjectEnabled(subject, event.currentTarget.checked)}
+							/>
+							<span class="truncate">{referenceSubjectLabels[subject]}</span>
+							<span class="ml-auto text-xs font-normal text-gray-400">
+								{getSubjectTopicSummary(subject)}
+							</span>
+						</label>
 
-					<div class="grid gap-0.5 pl-8">
-						{#each referenceTopicsBySubject[subject] as topic (topic)}
-							<label
-								class="flex cursor-pointer items-center gap-2 rounded-md px-2.5 py-1.5 text-sm text-gray-700 hover:bg-gray-50"
+						<button
+							type="button"
+							class="mr-1 grid size-7 shrink-0 cursor-pointer place-items-center rounded text-gray-500 hover:bg-gray-100 hover:text-gray-900 focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-blue-600"
+							aria-label="{isSubjectExpanded(subject)
+								? 'Collapse'
+								: 'Expand'} {referenceSubjectLabels[subject]} subcategories"
+							aria-expanded={isSubjectExpanded(subject)}
+							aria-controls={getTopicGroupId(subject)}
+							onclick={() => toggleSubjectExpanded(subject)}
+						>
+							<svg
+								class="size-4 transition-transform {isSubjectExpanded(subject) ? 'rotate-180' : ''}"
+								viewBox="0 0 20 20"
+								fill="none"
+								stroke="currentColor"
+								stroke-width="1.75"
+								aria-hidden="true"
 							>
-								<input
-									type="checkbox"
-									class="size-3.5 accent-gray-900"
-									checked={isTopicEnabled(topic)}
-									onchange={(event) => setTopicEnabled(topic, event.currentTarget.checked)}
-								/>
-								{referenceTopicLabels[topic]}
-							</label>
-						{/each}
+								<path d="m5 7.5 5 5 5-5" stroke-linecap="round" stroke-linejoin="round" />
+							</svg>
+						</button>
 					</div>
+
+					{#if isSubjectExpanded(subject)}
+						<div id={getTopicGroupId(subject)} class="mt-0.5 grid gap-0.5 pl-8">
+							{#each referenceTopicsBySubject[subject] as topic (topic)}
+								<label
+									class="flex cursor-pointer items-center gap-2 rounded-md px-2.5 py-1.5 text-sm text-gray-700 hover:bg-gray-50"
+								>
+									<input
+										type="checkbox"
+										class="size-3.5 accent-gray-900"
+										checked={isTopicEnabled(topic)}
+										onchange={(event) => setTopicEnabled(topic, event.currentTarget.checked)}
+									/>
+									{referenceTopicLabels[topic]}
+								</label>
+							{/each}
+						</div>
+					{/if}
 				</div>
 			{/each}
 		</div>

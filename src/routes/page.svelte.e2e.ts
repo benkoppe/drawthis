@@ -109,7 +109,7 @@ async function chooseOnlySubject(page: Page, subject: TestReferenceSubject): Pro
 	await expect(page.getByRole('button', { name: /no categories/i })).toBeVisible();
 	await getCategoryFilterInput(page, subjectLabels[subject]).check();
 
-	await expect(page.getByRole('button', { name: subjectLabels[subject] })).toBeVisible();
+	await expect(getCategoryFilterButton(page)).toHaveText(subjectLabels[subject]);
 	await expect(getCategoryFilterInput(page, subjectLabels[subject])).toBeChecked();
 	await page.keyboard.press('Escape');
 	await expect(getCategoryFilterMenu(page)).toBeHidden();
@@ -414,7 +414,7 @@ test('allows no selected categories as an invalid state until a category is sele
 	await expect(getCategoryFilterInput(page, 'Nature')).not.toBeChecked();
 
 	await getCategoryFilterInput(page, 'Nature').check();
-	await expect(page.getByRole('button', { name: 'Nature' })).toBeVisible();
+	await expect(getCategoryFilterButton(page)).toHaveText('Nature');
 	await expect(page.getByRole('button', { name: 'Next' })).toBeEnabled();
 });
 

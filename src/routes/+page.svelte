@@ -160,10 +160,14 @@
 			return;
 		}
 
-		if (event.key === 'ArrowLeft' && canGoBack) {
+		const key = event.key.toLowerCase();
+		const shouldGoBack = event.key === 'ArrowLeft' || key === 'h';
+		const shouldGoNext = event.key === 'ArrowRight' || event.key === ' ' || key === 'l';
+
+		if (shouldGoBack && canGoBack) {
 			event.preventDefault();
 			showPreviousReference();
-		} else if (event.key === 'ArrowRight' && canGoNext) {
+		} else if (shouldGoNext && canGoNext) {
 			event.preventDefault();
 			void showNextReference();
 		}

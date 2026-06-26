@@ -308,6 +308,25 @@ test('advances through drawing references and restores per-tab reference navigat
 	await expect(backButton).toBeEnabled();
 });
 
+test('supports keyboard shortcuts for previous and next reference navigation', async ({ page }) => {
+	await page.goto('/');
+
+	const referenceDescription = page.getByTestId('reference-description');
+	await expect(referenceDescription).toBeVisible();
+
+	const firstReferenceTitle = (await referenceDescription.textContent()) ?? '';
+
+	await page.keyboard.press('Space');
+	await expect(referenceDescription).not.toHaveText(firstReferenceTitle);
+	const secondReferenceTitle = (await referenceDescription.textContent()) ?? '';
+
+	await page.keyboard.press('h');
+	await expect(referenceDescription).toHaveText(firstReferenceTitle);
+
+	await page.keyboard.press('l');
+	await expect(referenceDescription).toHaveText(secondReferenceTitle);
+});
+
 test('applies the selected category to the next reference even when references are already queued', async ({
 	page
 }) => {

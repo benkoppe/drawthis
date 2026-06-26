@@ -51,6 +51,13 @@ export {
 	trimRecentReferenceIds
 } from './feed';
 export {
+	compactReferenceFeedContextItem,
+	parseReferenceFeedContextItemLike,
+	parseReferenceTaxonomyLike,
+	parseReferenceTrainingMetadataLike,
+	toReferenceFeedContextItem
+} from './context';
+export {
 	mergeRecentReferenceContexts,
 	mergeRecentReferenceIds,
 	parseRecentReferenceContexts,
@@ -60,8 +67,7 @@ export {
 	referenceHistoryCookieName,
 	referenceHistoryStorageKey,
 	serializeRecentReferenceContexts,
-	serializeRecentReferenceIds,
-	toReferenceFeedContextItem
+	serializeRecentReferenceIds
 } from './history';
 export {
 	appendReferenceHistoryEntry,

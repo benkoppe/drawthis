@@ -56,7 +56,7 @@ function makeProvider(
 				references: result.references.map((reference) => {
 					const training = {
 						...reference.training,
-						focuses: request.practiceFocuses ?? reference.training?.focuses,
+						focuses: request.focuses ?? reference.training?.focuses,
 						sceneTypes: request.sceneTypes ?? reference.training?.sceneTypes,
 						complexity: request.complexity ?? reference.training?.complexity
 					};

@@ -5,10 +5,10 @@ import {
 	isReferenceTopic,
 	isReferenceTopicForSubject,
 	isReferenceVisualComplexity,
-	normalizeReferencePracticeFocuses,
-	normalizeReferenceSceneTypes,
 	normalizeReferenceSubjects,
 	normalizeReferenceTopics,
+	parseReferenceTaxonomyLike,
+	parseReferenceTrainingMetadataLike,
 	referenceSubjects,
 	trimRecentReferenceIds,
 	type ReferenceFeedContextItem,
@@ -94,8 +94,6 @@ function parseReferenceTaxonomy(value: unknown, fieldName: string): ReferenceTax
 		throw error(400, `${fieldName}.taxonomy.primarySubject is not supported`);
 	}
 
-	const taxonomy: ReferenceTaxonomy = { primarySubject: value.primarySubject };
-
 	if (value.topic !== undefined) {
 		if (!isReferenceTopic(value.topic)) {
 			throw error(400, `${fieldName}.taxonomy.topic is not supported`);
@@ -104,8 +102,6 @@ function parseReferenceTaxonomy(value: unknown, fieldName: string): ReferenceTax
 		if (!isReferenceTopicForSubject(value.topic, value.primarySubject)) {
 			throw error(400, `${fieldName}.taxonomy.topic does not belong to primarySubject`);
 		}
-
-		taxonomy.topic = value.topic;
 	}
 
 	if (value.secondarySubjects !== undefined) {
@@ -113,24 +109,14 @@ function parseReferenceTaxonomy(value: unknown, fieldName: string): ReferenceTax
 			throw error(400, `${fieldName}.taxonomy.secondarySubjects must be an array`);
 		}
 
-		const secondarySubjects: ReferenceSubjectId[] = [];
-
 		for (const subject of value.secondarySubjects) {
 			if (!isReferenceSubject(subject)) {
 				throw error(400, `${fieldName}.taxonomy.secondarySubjects contains unsupported subject`);
 			}
-
-			if (subject !== taxonomy.primarySubject && !secondarySubjects.includes(subject)) {
-				secondarySubjects.push(subject);
-			}
-		}
-
-		if (secondarySubjects.length > 0) {
-			taxonomy.secondarySubjects = normalizeReferenceSubjects(secondarySubjects);
 		}
 	}
 
-	return taxonomy;
+	return parseReferenceTaxonomyLike(value) as ReferenceTaxonomy;
 }
 
 function parseReferenceTraining(
@@ -145,17 +131,15 @@ function parseReferenceTraining(
 		throw error(400, `${fieldName}.training must be an object`);
 	}
 
-	const training: ReferenceTrainingMetadata = {};
-
 	if (value.sceneTypes !== undefined) {
 		if (!Array.isArray(value.sceneTypes)) {
 			throw error(400, `${fieldName}.training.sceneTypes must be an array`);
 		}
 
-		const sceneTypes = normalizeReferenceSceneTypes(value.sceneTypes.filter(isReferenceSceneType));
-
-		if (sceneTypes !== undefined) {
-			training.sceneTypes = sceneTypes;
+		for (const sceneType of value.sceneTypes) {
+			if (!isReferenceSceneType(sceneType)) {
+				throw error(400, `${fieldName}.training.sceneTypes contains unsupported scene type`);
+			}
 		}
 	}
 
@@ -164,24 +148,18 @@ function parseReferenceTraining(
 			throw error(400, `${fieldName}.training.focuses must be an array`);
 		}
 
-		const focuses = normalizeReferencePracticeFocuses(
-			value.focuses.filter(isReferencePracticeFocus)
-		);
-
-		if (focuses !== undefined) {
-			training.focuses = focuses;
+		for (const focus of value.focuses) {
+			if (!isReferencePracticeFocus(focus)) {
+				throw error(400, `${fieldName}.training.focuses contains unsupported focus`);
+			}
 		}
 	}
 
-	if (value.complexity !== undefined) {
-		if (!isReferenceVisualComplexity(value.complexity)) {
-			throw error(400, `${fieldName}.training.complexity is not supported`);
-		}
-
-		training.complexity = value.complexity;
+	if (value.complexity !== undefined && !isReferenceVisualComplexity(value.complexity)) {
+		throw error(400, `${fieldName}.training.complexity is not supported`);
 	}
 
-	return Object.keys(training).length > 0 ? training : undefined;
+	return parseReferenceTrainingMetadataLike(value);
 }
 
 function parseReferenceSelection(

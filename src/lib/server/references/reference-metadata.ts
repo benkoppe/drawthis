@@ -53,8 +53,8 @@ export function createReferenceTrainingFromProviderRequest(
 ): ReferenceTrainingMetadata | undefined {
 	const training: ReferenceTrainingMetadata = {};
 
-	if (hasValues(request.practiceFocuses)) {
-		training.focuses = request.practiceFocuses;
+	if (hasValues(request.focuses)) {
+		training.focuses = request.focuses;
 	}
 
 	if (hasValues(request.sceneTypes)) {

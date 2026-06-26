@@ -1,6 +1,6 @@
 import type { ProviderSearchRequest, ReferenceProvider } from './provider';
 
-const cacheKeyVersion = 3;
+const cacheKeyVersion = 4;
 
 type JsonPrimitive = string | number | boolean | null;
 type JsonValue = JsonPrimitive | JsonValue[] | { [key: string]: JsonValue | undefined };
@@ -33,7 +33,7 @@ export function makeProviderSearchCacheKey(
 			count: request.count,
 			cursor: request.cursor,
 			orientation: request.orientation,
-			practiceFocuses: request.practiceFocuses as JsonValue[] | undefined,
+			focuses: request.focuses as JsonValue[] | undefined,
 			primarySubject: request.primarySubject,
 			query: request.query,
 			sceneTypes: request.sceneTypes as JsonValue[] | undefined,

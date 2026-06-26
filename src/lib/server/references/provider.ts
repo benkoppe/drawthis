@@ -25,7 +25,7 @@ export interface ProviderSearchRequest {
 	topic?: ReferenceTopicId;
 	secondarySubjects?: readonly ReferenceSubjectId[];
 	sceneTypes?: readonly ReferenceSceneType[];
-	practiceFocuses?: readonly ReferencePracticeFocus[];
+	focuses?: readonly ReferencePracticeFocus[];
 	complexity?: ReferenceVisualComplexity;
 	seed?: ReferenceSeedMetadata;
 	orientation?: ReferenceOrientation;

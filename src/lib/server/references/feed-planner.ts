@@ -177,8 +177,8 @@ function makeProviderSearchRequest(
 		request.sceneTypes = seed.sceneTypes;
 	}
 
-	if (seed.practiceFocuses !== undefined) {
-		request.practiceFocuses = seed.practiceFocuses;
+	if (seed.focuses !== undefined) {
+		request.focuses = seed.focuses;
 	}
 
 	if (seed.complexity !== undefined) {

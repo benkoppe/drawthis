@@ -43,7 +43,7 @@ describe('reference metadata helpers', () => {
 		expect(
 			createReferenceTrainingFromProviderRequest({
 				...baseRequest,
-				practiceFocuses: ['perspective'],
+				focuses: ['perspective'],
 				sceneTypes: ['interior'],
 				complexity: 'complex'
 			})

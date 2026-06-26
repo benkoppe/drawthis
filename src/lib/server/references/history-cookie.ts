@@ -1,4 +1,5 @@
 import {
+	compactReferenceFeedContextItem,
 	parseRecentReferenceContexts,
 	parseRecentReferenceIds,
 	referenceContextHistoryCookieName,
@@ -39,38 +40,13 @@ export function readRecentReferenceContextsCookie(
 	return parseRecentReferenceContexts(cookies.get(referenceContextHistoryCookieName));
 }
 
-function compactReferenceContextForCookie(
-	referenceContext: ReferenceFeedContextItem
-): ReferenceFeedContextItem {
-	const compactContext: ReferenceFeedContextItem = {
-		id: referenceContext.id,
-		taxonomy: {
-			primarySubject: referenceContext.taxonomy.primarySubject
-		}
-	};
-
-	if (referenceContext.taxonomy.topic !== undefined) {
-		compactContext.taxonomy.topic = referenceContext.taxonomy.topic;
-	}
-
-	if (referenceContext.providerId !== undefined) {
-		compactContext.providerId = referenceContext.providerId;
-	}
-
-	if (referenceContext.selection?.seedId !== undefined) {
-		compactContext.selection = { seedId: referenceContext.selection.seedId };
-	}
-
-	return compactContext;
-}
-
 export function writeRecentReferenceContextsCookie(
 	cookies: Pick<Cookies, 'set'>,
 	referenceContexts: readonly ReferenceFeedContextItem[]
 ): void {
 	cookies.set(
 		referenceContextHistoryCookieName,
-		serializeRecentReferenceContexts(referenceContexts.map(compactReferenceContextForCookie)),
+		serializeRecentReferenceContexts(referenceContexts.map(compactReferenceFeedContextItem)),
 		referenceHistoryCookieOptions
 	);
 }

@@ -16,7 +16,7 @@ export interface ReferenceSearchSeed {
 	topic?: ReferenceTopicId;
 	secondarySubjects?: readonly ReferenceSubjectId[];
 	sceneTypes?: readonly ReferenceSceneType[];
-	practiceFocuses?: readonly ReferencePracticeFocus[];
+	focuses?: readonly ReferencePracticeFocus[];
 	complexity?: ReferenceVisualComplexity;
 	weight?: number;
 	orientation?: ReferenceOrientation;
@@ -42,7 +42,7 @@ const defaultSeeds = [
 		query: 'standing figure pose reference photo',
 		primarySubject: 'people',
 		topic: 'full-figure',
-		practiceFocuses: ['proportion', 'gesture', 'anatomy'],
+		focuses: ['proportion', 'gesture', 'anatomy'],
 		complexity: 'moderate',
 		orientation: 'portrait'
 	},
@@ -52,7 +52,7 @@ const defaultSeeds = [
 		query: 'seated figure pose reference photo',
 		primarySubject: 'people',
 		topic: 'full-figure',
-		practiceFocuses: ['proportion', 'construction'],
+		focuses: ['proportion', 'construction'],
 		complexity: 'moderate'
 	},
 	{
@@ -61,7 +61,7 @@ const defaultSeeds = [
 		query: 'person action pose gesture reference',
 		primarySubject: 'people',
 		topic: 'gesture-action',
-		practiceFocuses: ['gesture', 'proportion'],
+		focuses: ['gesture', 'proportion'],
 		complexity: 'simple'
 	},
 	{
@@ -71,7 +71,7 @@ const defaultSeeds = [
 		primarySubject: 'people',
 		topic: 'hands-feet',
 		sceneTypes: ['close-up'],
-		practiceFocuses: ['construction', 'anatomy', 'shape'],
+		focuses: ['construction', 'anatomy', 'shape'],
 		complexity: 'moderate'
 	},
 	{
@@ -81,7 +81,7 @@ const defaultSeeds = [
 		primarySubject: 'people',
 		topic: 'expression',
 		sceneTypes: ['close-up'],
-		practiceFocuses: ['proportion', 'anatomy', 'value'],
+		focuses: ['proportion', 'anatomy', 'value'],
 		complexity: 'moderate',
 		orientation: 'portrait'
 	},
@@ -91,7 +91,7 @@ const defaultSeeds = [
 		query: 'person wearing jacket clothing folds reference',
 		primarySubject: 'people',
 		topic: 'clothing-drapery',
-		practiceFocuses: ['shape', 'material', 'texture'],
+		focuses: ['shape', 'material', 'texture'],
 		complexity: 'complex',
 		orientation: 'portrait'
 	},
@@ -101,7 +101,7 @@ const defaultSeeds = [
 		query: 'cat dog pet pose reference photo',
 		primarySubject: 'animals',
 		topic: 'pets',
-		practiceFocuses: ['gesture', 'shape', 'proportion'],
+		focuses: ['gesture', 'shape', 'proportion'],
 		complexity: 'moderate'
 	},
 	{
@@ -110,7 +110,7 @@ const defaultSeeds = [
 		query: 'bird perched reference photo',
 		primarySubject: 'animals',
 		topic: 'birds',
-		practiceFocuses: ['shape', 'proportion', 'texture'],
+		focuses: ['shape', 'proportion', 'texture'],
 		complexity: 'moderate'
 	},
 	{
@@ -120,7 +120,7 @@ const defaultSeeds = [
 		primarySubject: 'animals',
 		topic: 'animal-heads',
 		sceneTypes: ['close-up'],
-		practiceFocuses: ['construction', 'texture', 'value'],
+		focuses: ['construction', 'texture', 'value'],
 		complexity: 'moderate'
 	},
 	{
@@ -129,7 +129,7 @@ const defaultSeeds = [
 		query: 'animal running motion reference photo',
 		primarySubject: 'animals',
 		topic: 'motion-poses',
-		practiceFocuses: ['gesture', 'proportion'],
+		focuses: ['gesture', 'proportion'],
 		complexity: 'simple'
 	},
 	{
@@ -139,7 +139,7 @@ const defaultSeeds = [
 		primarySubject: 'objects',
 		topic: 'still-life-groups',
 		sceneTypes: ['still-life'],
-		practiceFocuses: ['construction', 'shape', 'value'],
+		focuses: ['construction', 'shape', 'value'],
 		complexity: 'moderate'
 	},
 	{
@@ -149,7 +149,7 @@ const defaultSeeds = [
 		primarySubject: 'objects',
 		topic: 'tools',
 		sceneTypes: ['still-life', 'workplace'],
-		practiceFocuses: ['construction', 'perspective', 'material'],
+		focuses: ['construction', 'perspective', 'material'],
 		complexity: 'complex'
 	},
 	{
@@ -159,7 +159,7 @@ const defaultSeeds = [
 		primarySubject: 'objects',
 		topic: 'food',
 		sceneTypes: ['still-life', 'everyday-life'],
-		practiceFocuses: ['shape', 'texture', 'value'],
+		focuses: ['shape', 'texture', 'value'],
 		complexity: 'moderate'
 	},
 	{
@@ -169,7 +169,7 @@ const defaultSeeds = [
 		primarySubject: 'objects',
 		topic: 'fabric-clothing',
 		sceneTypes: ['still-life'],
-		practiceFocuses: ['material', 'texture', 'value'],
+		focuses: ['material', 'texture', 'value'],
 		complexity: 'moderate'
 	},
 	{
@@ -179,7 +179,7 @@ const defaultSeeds = [
 		primarySubject: 'objects',
 		topic: 'clutter',
 		sceneTypes: ['still-life', 'everyday-life'],
-		practiceFocuses: ['composition', 'shape', 'negative-space'],
+		focuses: ['composition', 'shape', 'negative-space'],
 		complexity: 'dense'
 	},
 	{
@@ -189,7 +189,7 @@ const defaultSeeds = [
 		primarySubject: 'places',
 		topic: 'rooms',
 		sceneTypes: ['interior', 'everyday-life'],
-		practiceFocuses: ['perspective', 'composition', 'value'],
+		focuses: ['perspective', 'composition', 'value'],
 		complexity: 'complex',
 		orientation: 'landscape'
 	},
@@ -201,7 +201,7 @@ const defaultSeeds = [
 		topic: 'kitchens-workspaces',
 		secondarySubjects: ['objects'],
 		sceneTypes: ['interior', 'workplace', 'everyday-life'],
-		practiceFocuses: ['perspective', 'composition', 'shape'],
+		focuses: ['perspective', 'composition', 'shape'],
 		complexity: 'dense'
 	},
 	{
@@ -212,7 +212,7 @@ const defaultSeeds = [
 		topic: 'kitchens-workspaces',
 		secondarySubjects: ['objects'],
 		sceneTypes: ['interior', 'everyday-life'],
-		practiceFocuses: ['perspective', 'shape', 'value'],
+		focuses: ['perspective', 'shape', 'value'],
 		complexity: 'complex'
 	},
 	{
@@ -222,7 +222,7 @@ const defaultSeeds = [
 		primarySubject: 'places',
 		topic: 'public-interiors',
 		sceneTypes: ['interior', 'public-space', 'everyday-life'],
-		practiceFocuses: ['perspective', 'composition'],
+		focuses: ['perspective', 'composition'],
 		complexity: 'complex',
 		orientation: 'landscape'
 	},
@@ -233,7 +233,7 @@ const defaultSeeds = [
 		primarySubject: 'places',
 		topic: 'storefronts',
 		sceneTypes: ['street', 'public-space', 'everyday-life'],
-		practiceFocuses: ['perspective', 'composition', 'value'],
+		focuses: ['perspective', 'composition', 'value'],
 		complexity: 'complex',
 		orientation: 'landscape'
 	},
@@ -245,7 +245,7 @@ const defaultSeeds = [
 		topic: 'transit-stops',
 		secondarySubjects: ['people', 'vehicles-machines'],
 		sceneTypes: ['street', 'public-space', 'everyday-life'],
-		practiceFocuses: ['perspective', 'composition'],
+		focuses: ['perspective', 'composition'],
 		complexity: 'complex',
 		orientation: 'landscape'
 	},
@@ -257,7 +257,7 @@ const defaultSeeds = [
 		topic: 'parking-lots',
 		secondarySubjects: ['vehicles-machines'],
 		sceneTypes: ['street', 'public-space', 'everyday-life'],
-		practiceFocuses: ['perspective', 'composition'],
+		focuses: ['perspective', 'composition'],
 		complexity: 'moderate',
 		orientation: 'landscape'
 	},
@@ -268,7 +268,7 @@ const defaultSeeds = [
 		primarySubject: 'nature',
 		topic: 'plants-flowers',
 		sceneTypes: ['isolated-subject', 'interior'],
-		practiceFocuses: ['shape', 'texture', 'negative-space'],
+		focuses: ['shape', 'texture', 'negative-space'],
 		complexity: 'moderate'
 	},
 	{
@@ -277,7 +277,7 @@ const defaultSeeds = [
 		query: 'tree branch leaves reference photo',
 		primarySubject: 'nature',
 		topic: 'trees-branches',
-		practiceFocuses: ['gesture', 'texture', 'shape'],
+		focuses: ['gesture', 'texture', 'shape'],
 		complexity: 'complex'
 	},
 	{
@@ -287,7 +287,7 @@ const defaultSeeds = [
 		primarySubject: 'nature',
 		topic: 'rocks-ground',
 		sceneTypes: ['landscape'],
-		practiceFocuses: ['texture', 'value', 'shape'],
+		focuses: ['texture', 'value', 'shape'],
 		complexity: 'moderate'
 	},
 	{
@@ -297,7 +297,7 @@ const defaultSeeds = [
 		primarySubject: 'nature',
 		topic: 'gardens-parks',
 		sceneTypes: ['landscape', 'everyday-life'],
-		practiceFocuses: ['perspective', 'composition', 'texture'],
+		focuses: ['perspective', 'composition', 'texture'],
 		complexity: 'complex',
 		orientation: 'landscape'
 	},
@@ -308,7 +308,7 @@ const defaultSeeds = [
 		primarySubject: 'nature',
 		topic: 'landscapes',
 		sceneTypes: ['landscape'],
-		practiceFocuses: ['composition', 'value', 'shape'],
+		focuses: ['composition', 'value', 'shape'],
 		complexity: 'moderate',
 		orientation: 'landscape'
 	},
@@ -320,7 +320,7 @@ const defaultSeeds = [
 		topic: 'cars-trucks',
 		secondarySubjects: ['places'],
 		sceneTypes: ['street', 'everyday-life'],
-		practiceFocuses: ['perspective', 'construction', 'shape'],
+		focuses: ['perspective', 'construction', 'shape'],
 		complexity: 'moderate',
 		orientation: 'landscape'
 	},
@@ -331,7 +331,7 @@ const defaultSeeds = [
 		primarySubject: 'vehicles-machines',
 		topic: 'bikes-motorcycles',
 		sceneTypes: ['isolated-subject', 'street'],
-		practiceFocuses: ['construction', 'shape', 'negative-space'],
+		focuses: ['construction', 'shape', 'negative-space'],
 		complexity: 'complex'
 	},
 	{
@@ -341,7 +341,7 @@ const defaultSeeds = [
 		primarySubject: 'vehicles-machines',
 		topic: 'buses-trains',
 		sceneTypes: ['street', 'public-space'],
-		practiceFocuses: ['perspective', 'construction'],
+		focuses: ['perspective', 'construction'],
 		complexity: 'complex',
 		orientation: 'landscape'
 	},
@@ -352,7 +352,7 @@ const defaultSeeds = [
 		primarySubject: 'vehicles-machines',
 		topic: 'mechanical-details',
 		sceneTypes: ['close-up'],
-		practiceFocuses: ['construction', 'material', 'texture'],
+		focuses: ['construction', 'material', 'texture'],
 		complexity: 'dense'
 	}
 ] as const satisfies readonly ReferenceSearchSeed[];

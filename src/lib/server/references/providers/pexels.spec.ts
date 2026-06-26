@@ -68,7 +68,7 @@ describe('createPexelsReferenceProvider', () => {
 			topic: 'kitchens-workspaces',
 			query: 'cluttered desk',
 			sceneTypes: ['interior', 'workplace'],
-			practiceFocuses: ['perspective', 'composition'],
+			focuses: ['perspective', 'composition'],
 			complexity: 'dense',
 			seed: { id: 'places-cluttered-desk', label: 'Cluttered desk', query: 'cluttered desk' },
 			orientation: 'landscape'

@@ -5,9 +5,12 @@
 		appendReferenceTimelineEntry,
 		areReferenceSubjectSelectionsEqual,
 		areReferenceTopicSelectionsEqual,
+		createReferenceCategorySelectionSnapshot,
 		createReferenceCategoryFilterSelection,
 		createReferenceTimelineEntry,
 		createReferenceTimelineTabId,
+		filterReferencesByCategorySelectionSnapshot,
+		formatReferenceFeedErrorMessage,
 		getLastViewedReferenceHistoryEntry,
 		getRecentReferenceHistoryEntries,
 		getReferenceHistoryEntriesByIds,
@@ -36,12 +39,12 @@
 		serializeRecentReferenceIds,
 		serializeReferenceCategoryFilterSelection,
 		serializeReferenceTabTimelineState,
-		getReferenceSubjectSelectionKey,
-		getReferenceTopicSelectionKey,
-		isReferenceInCategorySelection,
+		getReferenceCategorySelectionKey,
+		isReferenceInCategorySelectionSnapshot,
 		setLastViewedReferenceHistoryEntryId,
 		toReferenceFeedContextItem,
 		type DrawingReference,
+		type ReferenceCategorySelectionSnapshot,
 		type ReferenceSubjectId,
 		type ReferenceTopicId,
 		type ReferenceFeedContextItem,
@@ -63,12 +66,6 @@
 	let enabledTopics = $state<ReferenceTopicId[]>([...referenceTopics]);
 	let categoryFilterStorageIsReady = $state(false);
 
-	interface ActiveReferenceCategorySelection {
-		subjects: ReferenceSubjectId[];
-		topics: ReferenceTopicId[];
-		key: string;
-	}
-
 	let currentReference = $state<DrawingReference | undefined>();
 	let referenceQueue = $state<DrawingReference[]>(initialReferences.slice(1));
 	let referenceQueueCategoryKey = $state(getCategoryFilterKey(referenceSubjects, referenceTopics));
@@ -81,7 +78,11 @@
 	let isReady = $state(false);
 	let isLoadingReference = $state(false);
 	let isRefillingQueue = $state(false);
-	let errorMessage = $state<string | undefined>(initialFeedErrorMessage);
+	let errorMessage = $state<string | undefined>(
+		initialFeedErrorMessage === undefined
+			? undefined
+			: formatReferenceFeedErrorMessage(initialFeedErrorMessage)
+	);
 	let referenceFeedRequestGeneration = 0;
 	let activeCategoryFilterKey = getCategoryFilterKey(referenceSubjects, referenceTopics);
 	let activeQueueRefillAbortController: AbortController | undefined;
@@ -159,21 +160,14 @@
 		subjects: readonly ReferenceSubjectId[],
 		topics: readonly ReferenceTopicId[]
 	): string {
-		return `${getReferenceSubjectSelectionKey(subjects)}:${getReferenceTopicSelectionKey(topics, subjects)}`;
+		return getReferenceCategorySelectionKey(subjects, topics);
 	}
 
 	function createActiveReferenceCategorySelection(
 		subjects: readonly ReferenceSubjectId[] = enabledSubjects,
 		topics: readonly ReferenceTopicId[] = enabledTopics
-	): ActiveReferenceCategorySelection {
-		const normalizedSubjects = normalizeReferenceSubjects(subjects);
-		const normalizedTopics = normalizeReferenceTopics(topics, normalizedSubjects);
-
-		return {
-			subjects: normalizedSubjects,
-			topics: normalizedTopics,
-			key: getCategoryFilterKey(normalizedSubjects, normalizedTopics)
-		};
+	): ReferenceCategorySelectionSnapshot {
+		return createReferenceCategorySelectionSnapshot(subjects, topics);
 	}
 
 	function formatReferenceLabel(reference: DrawingReference | undefined): string {
@@ -389,18 +383,16 @@
 
 	function referenceMatchesCategorySelection(
 		reference: DrawingReference,
-		selection: ActiveReferenceCategorySelection
+		selection: ReferenceCategorySelectionSnapshot
 	): boolean {
-		return isReferenceInCategorySelection(reference, selection.subjects, selection.topics);
+		return isReferenceInCategorySelectionSnapshot(reference, selection);
 	}
 
 	function filterReferencesByCategorySelection(
 		references: readonly DrawingReference[],
-		selection: ActiveReferenceCategorySelection
+		selection: ReferenceCategorySelectionSnapshot
 	): DrawingReference[] {
-		return references.filter((reference) =>
-			referenceMatchesCategorySelection(reference, selection)
-		);
+		return filterReferencesByCategorySelectionSnapshot(references, selection);
 	}
 
 	function branchReferenceTimelineAtCurrentReference(): void {
@@ -549,7 +541,7 @@
 	}
 
 	function getPrecedingReferenceContexts(
-		selection: ActiveReferenceCategorySelection | undefined = undefined
+		selection: ReferenceCategorySelectionSnapshot | undefined = undefined
 	): ReferenceFeedContextItem[] {
 		const queuedReferences =
 			selection === undefined ? referenceQueue : getCategoryScopedReferenceQueue(selection);
@@ -574,7 +566,7 @@
 	}
 
 	function getCategoryScopedReferenceQueue(
-		selection: ActiveReferenceCategorySelection
+		selection: ReferenceCategorySelectionSnapshot
 	): DrawingReference[] {
 		if (referenceQueueCategoryKey !== selection.key) {
 			setReferenceQueue([], selection.key);
@@ -684,7 +676,10 @@
 			}
 
 			if (referenceQueue.length === 0) {
-				errorMessage = cause instanceof Error ? cause.message : 'Could not load more references.';
+				errorMessage =
+					cause instanceof Error
+						? formatReferenceFeedErrorMessage(cause.message)
+						: 'Could not load more references.';
 			}
 		} finally {
 			if (activeQueueRefillAbortController === abortController) {
@@ -696,7 +691,7 @@
 
 	async function loadImmediateFallbackReference(
 		requestGeneration: number,
-		selectionSnapshot: ActiveReferenceCategorySelection,
+		selectionSnapshot: ReferenceCategorySelectionSnapshot,
 		signal: AbortSignal
 	): Promise<DrawingReference | undefined> {
 		const currentReferenceId = currentReference?.id;
@@ -798,7 +793,10 @@
 				return;
 			}
 
-			errorMessage = cause instanceof Error ? cause.message : 'Could not load the next reference.';
+			errorMessage =
+				cause instanceof Error
+					? formatReferenceFeedErrorMessage(cause.message)
+					: 'Could not load the next reference.';
 		} finally {
 			if (activeImmediateReferenceAbortController === abortController) {
 				activeImmediateReferenceAbortController = undefined;

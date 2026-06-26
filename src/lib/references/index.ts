@@ -1,5 +1,13 @@
 export { requestReferenceFeed, type RequestReferenceFeedOptions } from './api';
 export {
+	createReferenceCategorySelectionSnapshot,
+	filterReferencesByCategorySelectionSnapshot,
+	getReferenceCategorySelectionKey,
+	isReferenceInCategorySelectionSnapshot,
+	type ReferenceCategorySelectionSnapshot
+} from './category-selection';
+export { formatReferenceFeedErrorMessage } from './errors';
+export {
 	areReferenceSubjectSelectionsEqual,
 	areReferenceTopicSelectionsEqual,
 	createReferenceCategoryFilterSelection,

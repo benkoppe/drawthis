@@ -27,7 +27,12 @@ const subjectImageUrls = {
 
 type TestReferenceSubject = keyof typeof subjectLabels;
 
-function makeE2eReference(subject: TestReferenceSubject, title: string, id = title) {
+function makeE2eReference(
+	subject: TestReferenceSubject,
+	title: string,
+	id = title,
+	topic?: string
+) {
 	const imageUrl = subjectImageUrls[subject];
 
 	return {
@@ -39,7 +44,8 @@ function makeE2eReference(subject: TestReferenceSubject, title: string, id = tit
 		},
 		title,
 		taxonomy: {
-			primarySubject: subject
+			primarySubject: subject,
+			...(topic === undefined ? {} : { topic })
 		},
 		image: {
 			url: imageUrl,
@@ -115,6 +121,25 @@ async function chooseOnlySubject(page: Page, subject: TestReferenceSubject): Pro
 	await expect(getCategoryFilterMenu(page)).toBeHidden();
 }
 
+async function chooseOnlyTopic(
+	page: Page,
+	subjectLabel: string,
+	topicLabel: string
+): Promise<void> {
+	await openCategoryFilter(page);
+	const allCategoriesInput = getCategoryFilterInput(page, 'All categories');
+	await allCategoriesInput.check();
+	await allCategoriesInput.uncheck();
+
+	await getCategoryFilterMenu(page)
+		.getByRole('button', { name: new RegExp(`expand ${subjectLabel} subcategories`, 'i') })
+		.click();
+	await getCategoryFilterInput(page, topicLabel).check();
+
+	await page.keyboard.press('Escape');
+	await expect(getCategoryFilterMenu(page)).toBeHidden();
+}
+
 async function mockReferenceFeedPosts(page: Page): Promise<unknown[]> {
 	let responseIndex = 0;
 	const requestBodies: unknown[] = [];
@@ -126,22 +151,26 @@ async function mockReferenceFeedPosts(page: Page): Promise<unknown[]> {
 		}
 
 		const body = route.request().postDataJSON() as {
-			preferences?: { enabledSubjects?: TestReferenceSubject[] };
+			count?: number;
+			preferences?: { enabledSubjects?: TestReferenceSubject[]; enabledTopics?: string[] };
 		};
 		const [subject = 'places'] = body.preferences?.enabledSubjects ?? ['places'];
+		const [topic] = body.preferences?.enabledTopics ?? [];
+		const count = body.count ?? 1;
 		requestBodies.push(body);
 		responseIndex += 1;
 
 		await route.fulfill({
 			contentType: 'application/json',
 			body: JSON.stringify({
-				references: [
+				references: Array.from({ length: count }, (_, index) =>
 					makeE2eReference(
 						subject,
-						`Mock ${subjectLabels[subject]} ${responseIndex}`,
-						`${subject}-${responseIndex}`
+						`Mock ${subjectLabels[subject]} ${topic ?? 'all'} ${responseIndex}-${index + 1}`,
+						`${subject}-${topic ?? 'all'}-${responseIndex}-${index + 1}`,
+						topic
 					)
-				]
+				)
 			})
 		});
 	});
@@ -360,6 +389,70 @@ test('applies the selected subject to the next reference even when references ar
 	await page.getByRole('button', { name: 'Next' }).click();
 
 	await expect(heading).toContainText(subjectLabels[selectedSubject]);
+});
+
+test('discards queued subcategory references after changing category selection', async ({
+	page
+}) => {
+	const requestBodies = await mockReferenceFeedPosts(page);
+	await page.goto('/');
+
+	const heading = page.getByRole('heading', { level: 1 });
+	const nextButton = page.getByRole('button', { name: 'Next' });
+	await expect(heading).toBeVisible();
+
+	await chooseOnlyTopic(page, 'Objects', 'Tools');
+	await expect
+		.poll(() =>
+			requestBodies.some((body) => {
+				const preferences = (
+					body as {
+						preferences?: { enabledSubjects?: string[]; enabledTopics?: string[] };
+					}
+				).preferences;
+
+				return (
+					preferences?.enabledSubjects?.length === 1 &&
+					preferences.enabledSubjects[0] === 'objects' &&
+					preferences.enabledTopics?.length === 1 &&
+					preferences.enabledTopics[0] === 'tools'
+				);
+			})
+		)
+		.toBe(true);
+
+	for (let index = 0; index < 3; index += 1) {
+		await expect(nextButton).toBeEnabled();
+		await nextButton.click();
+		await expect(heading).toContainText('Objects · Tools');
+	}
+
+	await chooseOnlyTopic(page, 'Nature', 'Plants / Flowers');
+	await expect
+		.poll(() =>
+			requestBodies.some((body) => {
+				const preferences = (
+					body as {
+						preferences?: { enabledSubjects?: string[]; enabledTopics?: string[] };
+					}
+				).preferences;
+
+				return (
+					preferences?.enabledSubjects?.length === 1 &&
+					preferences.enabledSubjects[0] === 'nature' &&
+					preferences.enabledTopics?.length === 1 &&
+					preferences.enabledTopics[0] === 'plants-flowers'
+				);
+			})
+		)
+		.toBe(true);
+
+	for (let index = 0; index < 4; index += 1) {
+		await expect(nextButton).toBeEnabled();
+		await nextButton.click();
+		await expect(heading).toContainText('Nature · Plants / Flowers');
+		await expect(heading).not.toContainText('Objects · Tools');
+	}
 });
 
 test('branches the active tab timeline after Back and subject changes without deleting durable history', async ({

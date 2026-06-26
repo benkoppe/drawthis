@@ -56,13 +56,22 @@
 	let { data }: { data: PageData } = $props();
 	// svelte-ignore state_referenced_locally
 	const initialReferences = data.references;
+	// svelte-ignore state_referenced_locally
+	const initialFeedErrorMessage = data.initialFeedErrorMessage;
 
 	let enabledSubjects = $state<ReferenceSubjectId[]>([...referenceSubjects]);
 	let enabledTopics = $state<ReferenceTopicId[]>([...referenceTopics]);
 	let categoryFilterStorageIsReady = $state(false);
 
+	interface ActiveReferenceCategorySelection {
+		subjects: ReferenceSubjectId[];
+		topics: ReferenceTopicId[];
+		key: string;
+	}
+
 	let currentReference = $state<DrawingReference | undefined>();
 	let referenceQueue = $state<DrawingReference[]>(initialReferences.slice(1));
+	let referenceQueueCategoryKey = $state(getCategoryFilterKey(referenceSubjects, referenceTopics));
 	let avoidanceReferenceIds = $state<string[]>([]);
 	let avoidanceReferenceContexts = $state<ReferenceFeedContextItem[]>([]);
 	let referenceTimelineEntries = $state<ReferenceTimelineEntry[]>([]);
@@ -72,10 +81,11 @@
 	let isReady = $state(false);
 	let isLoadingReference = $state(false);
 	let isRefillingQueue = $state(false);
-	let errorMessage = $state<string | undefined>();
+	let errorMessage = $state<string | undefined>(initialFeedErrorMessage);
 	let referenceFeedRequestGeneration = 0;
 	let activeCategoryFilterKey = getCategoryFilterKey(referenceSubjects, referenceTopics);
 	let activeQueueRefillAbortController: AbortController | undefined;
+	let activeImmediateReferenceAbortController: AbortController | undefined;
 	let currentImageUrl = $derived(
 		currentReference ? resolveReferenceUrl(currentReference.image.url) : ''
 	);
@@ -150,6 +160,20 @@
 		topics: readonly ReferenceTopicId[]
 	): string {
 		return `${getReferenceSubjectSelectionKey(subjects)}:${getReferenceTopicSelectionKey(topics, subjects)}`;
+	}
+
+	function createActiveReferenceCategorySelection(
+		subjects: readonly ReferenceSubjectId[] = enabledSubjects,
+		topics: readonly ReferenceTopicId[] = enabledTopics
+	): ActiveReferenceCategorySelection {
+		const normalizedSubjects = normalizeReferenceSubjects(subjects);
+		const normalizedTopics = normalizeReferenceTopics(topics, normalizedSubjects);
+
+		return {
+			subjects: normalizedSubjects,
+			topics: normalizedTopics,
+			key: getCategoryFilterKey(normalizedSubjects, normalizedTopics)
+		};
 	}
 
 	function formatReferenceLabel(reference: DrawingReference | undefined): string {
@@ -363,17 +387,23 @@
 		});
 	}
 
-	function filterReferencesByEnabledCategories(
+	function referenceMatchesCategorySelection(
+		reference: DrawingReference,
+		selection: ActiveReferenceCategorySelection
+	): boolean {
+		return isReferenceInCategorySelection(reference, selection.subjects, selection.topics);
+	}
+
+	function filterReferencesByCategorySelection(
 		references: readonly DrawingReference[],
-		subjects: readonly ReferenceSubjectId[],
-		topics: readonly ReferenceTopicId[]
+		selection: ActiveReferenceCategorySelection
 	): DrawingReference[] {
 		return references.filter((reference) =>
-			isReferenceInCategorySelection(reference, subjects, topics)
+			referenceMatchesCategorySelection(reference, selection)
 		);
 	}
 
-	function truncateForwardReferenceTimelineEntries(): void {
+	function branchReferenceTimelineAtCurrentReference(): void {
 		if (referenceTimelineCursorIndex < 0 || isAtTimelineTail) {
 			return;
 		}
@@ -385,13 +415,22 @@
 	function cancelActiveReferenceFeedRequests(): void {
 		referenceFeedRequestGeneration += 1;
 		activeQueueRefillAbortController?.abort();
+		activeImmediateReferenceAbortController?.abort();
 		activeQueueRefillAbortController = undefined;
+		activeImmediateReferenceAbortController = undefined;
 		isRefillingQueue = false;
+		isLoadingReference = false;
 	}
 
 	function handleNoCategoriesSelected(): void {
-		cancelActiveReferenceFeedRequests();
-		activeCategoryFilterKey = getCategoryFilterKey([], []);
+		const emptyCategoryFilterKey = getCategoryFilterKey([], []);
+
+		if (activeCategoryFilterKey !== emptyCategoryFilterKey) {
+			cancelActiveReferenceFeedRequests();
+			activeCategoryFilterKey = emptyCategoryFilterKey;
+			setReferenceQueue([], emptyCategoryFilterKey);
+		}
+
 		errorMessage = undefined;
 	}
 
@@ -399,11 +438,13 @@
 		subjects: readonly ReferenceSubjectId[],
 		topics: readonly ReferenceTopicId[]
 	): void {
+		const selection = createActiveReferenceCategorySelection(subjects, topics);
+
 		cancelActiveReferenceFeedRequests();
 		errorMessage = undefined;
 
-		truncateForwardReferenceTimelineEntries();
-		setReferenceQueue(filterReferencesByEnabledCategories(referenceQueue, subjects, topics));
+		branchReferenceTimelineAtCurrentReference();
+		setReferenceQueue([], selection.key);
 
 		if (isReady) {
 			void ensureReferenceQueueFilled({ force: true });
@@ -507,20 +548,46 @@
 		void rememberLastViewedTimelineEntry();
 	}
 
-	function getPrecedingReferenceContexts(): ReferenceFeedContextItem[] {
-		return [currentReference, ...referenceQueue]
+	function getPrecedingReferenceContexts(
+		selection: ActiveReferenceCategorySelection | undefined = undefined
+	): ReferenceFeedContextItem[] {
+		const queuedReferences =
+			selection === undefined ? referenceQueue : getCategoryScopedReferenceQueue(selection);
+
+		return [currentReference, ...queuedReferences]
 			.filter((reference): reference is DrawingReference => reference !== undefined)
 			.map(toReferenceFeedContextItem);
 	}
 
-	function setReferenceQueue(nextQueue: DrawingReference[]): void {
+	function setReferenceQueue(
+		nextQueue: DrawingReference[],
+		categoryKey = activeCategoryFilterKey
+	): void {
 		const queuedReferenceIds = new Set(nextQueue.map((reference) => reference.id));
 
 		referenceQueue = nextQueue;
+		referenceQueueCategoryKey = categoryKey;
 		preloadedReferenceIds = preloadedReferenceIds.filter((referenceId) =>
 			queuedReferenceIds.has(referenceId)
 		);
 		preloadQueuedImages();
+	}
+
+	function getCategoryScopedReferenceQueue(
+		selection: ActiveReferenceCategorySelection
+	): DrawingReference[] {
+		if (referenceQueueCategoryKey !== selection.key) {
+			setReferenceQueue([], selection.key);
+			return [];
+		}
+
+		const categorySafeQueue = filterReferencesByCategorySelection(referenceQueue, selection);
+
+		if (categorySafeQueue.length !== referenceQueue.length) {
+			setReferenceQueue(categorySafeQueue, selection.key);
+		}
+
+		return categorySafeQueue;
 	}
 
 	async function preloadImage(url: string): Promise<void> {
@@ -556,17 +623,18 @@
 			return;
 		}
 
-		if (!options.force && referenceQueue.length > referenceQueueLowWatermark) {
+		const selectionSnapshot = createActiveReferenceCategorySelection();
+		const scopedQueue = getCategoryScopedReferenceQueue(selectionSnapshot);
+
+		if (!options.force && scopedQueue.length > referenceQueueLowWatermark) {
 			return;
 		}
 
-		if (referenceQueue.length >= referenceQueueTargetSize) {
+		if (scopedQueue.length >= referenceQueueTargetSize) {
 			return;
 		}
 
 		const requestGeneration = referenceFeedRequestGeneration;
-		const enabledSubjectsSnapshot = normalizeReferenceSubjects(enabledSubjects);
-		const enabledTopicsSnapshot = normalizeReferenceTopics(enabledTopics, enabledSubjectsSnapshot);
 		const abortController = new AbortController();
 		const currentReferenceId = currentReference?.id;
 
@@ -574,17 +642,17 @@
 		activeQueueRefillAbortController = abortController;
 
 		try {
-			const requestedCount = Math.max(referenceQueueTargetSize - referenceQueue.length, 1);
+			const requestedCount = Math.max(referenceQueueTargetSize - scopedQueue.length, 1);
 			const feed = await requestReferenceFeed(
 				{
 					count: requestedCount,
 					currentReferenceId,
 					recentReferenceIds: avoidanceReferenceIds,
 					recentReferences: avoidanceReferenceContexts,
-					precedingReferences: getPrecedingReferenceContexts(),
+					precedingReferences: getPrecedingReferenceContexts(selectionSnapshot),
 					preferences: {
-						enabledSubjects: enabledSubjectsSnapshot,
-						enabledTopics: enabledTopicsSnapshot
+						enabledSubjects: selectionSnapshot.subjects,
+						enabledTopics: selectionSnapshot.topics
 					}
 				},
 				{ fetch, basePath: base, signal: abortController.signal }
@@ -592,27 +660,22 @@
 
 			if (
 				requestGeneration !== referenceFeedRequestGeneration ||
-				!areReferenceSubjectSelectionsEqual(enabledSubjectsSnapshot, enabledSubjects) ||
-				!areReferenceTopicSelectionsEqual(
-					enabledTopicsSnapshot,
-					enabledTopics,
-					enabledSubjectsSnapshot
-				)
+				selectionSnapshot.key !== createActiveReferenceCategorySelection().key
 			) {
 				return;
 			}
 
-			const queuedReferenceIds = new Set(referenceQueue.map((reference) => reference.id));
-			const newReferences = filterReferencesByEnabledCategories(
+			const currentScopedQueue = getCategoryScopedReferenceQueue(selectionSnapshot);
+			const queuedReferenceIds = new Set(currentScopedQueue.map((reference) => reference.id));
+			const newReferences = filterReferencesByCategorySelection(
 				feed.references,
-				enabledSubjectsSnapshot,
-				enabledTopicsSnapshot
+				selectionSnapshot
 			).filter(
 				(reference) => !queuedReferenceIds.has(reference.id) && reference.id !== currentReferenceId
 			);
 
 			if (newReferences.length > 0) {
-				setReferenceQueue([...referenceQueue, ...newReferences]);
+				setReferenceQueue([...currentScopedQueue, ...newReferences], selectionSnapshot.key);
 				rememberAvoidanceReferences(newReferences);
 			}
 		} catch (cause) {
@@ -633,8 +696,8 @@
 
 	async function loadImmediateFallbackReference(
 		requestGeneration: number,
-		enabledSubjectsSnapshot: readonly ReferenceSubjectId[],
-		enabledTopicsSnapshot: readonly ReferenceTopicId[]
+		selectionSnapshot: ActiveReferenceCategorySelection,
+		signal: AbortSignal
 	): Promise<DrawingReference | undefined> {
 		const currentReferenceId = currentReference?.id;
 		const feed = await requestReferenceFeed(
@@ -643,32 +706,23 @@
 				currentReferenceId,
 				recentReferenceIds: avoidanceReferenceIds,
 				recentReferences: avoidanceReferenceContexts,
-				precedingReferences: getPrecedingReferenceContexts(),
+				precedingReferences: getPrecedingReferenceContexts(selectionSnapshot),
 				preferences: {
-					enabledSubjects: enabledSubjectsSnapshot,
-					enabledTopics: enabledTopicsSnapshot
+					enabledSubjects: selectionSnapshot.subjects,
+					enabledTopics: selectionSnapshot.topics
 				}
 			},
-			{ fetch, basePath: base }
+			{ fetch, basePath: base, signal }
 		);
 
 		if (
 			requestGeneration !== referenceFeedRequestGeneration ||
-			!areReferenceSubjectSelectionsEqual(enabledSubjectsSnapshot, enabledSubjects) ||
-			!areReferenceTopicSelectionsEqual(
-				enabledTopicsSnapshot,
-				enabledTopics,
-				enabledSubjectsSnapshot
-			)
+			selectionSnapshot.key !== createActiveReferenceCategorySelection().key
 		) {
 			return undefined;
 		}
 
-		return filterReferencesByEnabledCategories(
-			feed.references,
-			enabledSubjectsSnapshot,
-			enabledTopicsSnapshot
-		)[0];
+		return filterReferencesByCategorySelection(feed.references, selectionSnapshot)[0];
 	}
 
 	function showPreviousReference(): void {
@@ -687,28 +741,30 @@
 
 		errorMessage = undefined;
 
+		const selectionSnapshot = createActiveReferenceCategorySelection();
+
 		if (!isAtTimelineTail) {
-			showTimelineEntry(referenceTimelineCursorIndex + 1);
-			return;
+			const forwardReference =
+				referenceTimelineEntries[referenceTimelineCursorIndex + 1]?.reference;
+
+			if (
+				forwardReference !== undefined &&
+				referenceMatchesCategorySelection(forwardReference, selectionSnapshot)
+			) {
+				showTimelineEntry(referenceTimelineCursorIndex + 1);
+				return;
+			}
+
+			branchReferenceTimelineAtCurrentReference();
 		}
 
 		const previousReference = currentReference;
-		const enabledSubjectsSnapshot = normalizeReferenceSubjects(enabledSubjects);
-		const enabledTopicsSnapshot = normalizeReferenceTopics(enabledTopics, enabledSubjectsSnapshot);
-		const subjectSafeQueue = filterReferencesByEnabledCategories(
-			referenceQueue,
-			enabledSubjectsSnapshot,
-			enabledTopicsSnapshot
-		);
-		const [queuedReference, ...remainingQueue] = subjectSafeQueue;
-
-		if (subjectSafeQueue.length !== referenceQueue.length) {
-			setReferenceQueue(subjectSafeQueue);
-		}
+		const categoryScopedQueue = getCategoryScopedReferenceQueue(selectionSnapshot);
+		const [queuedReference, ...remainingQueue] = categoryScopedQueue;
 
 		if (queuedReference !== undefined) {
 			await appendDisplayedReferenceToTimeline(queuedReference);
-			setReferenceQueue(remainingQueue);
+			setReferenceQueue(remainingQueue, selectionSnapshot.key);
 			rememberAvoidanceReferences([previousReference, queuedReference]);
 			void ensureReferenceQueueFilled();
 			return;
@@ -716,12 +772,14 @@
 
 		isLoadingReference = true;
 		const requestGeneration = referenceFeedRequestGeneration;
+		const abortController = new AbortController();
+		activeImmediateReferenceAbortController = abortController;
 
 		try {
 			const nextReference = await loadImmediateFallbackReference(
 				requestGeneration,
-				enabledSubjectsSnapshot,
-				enabledTopicsSnapshot
+				selectionSnapshot,
+				abortController.signal
 			);
 
 			if (!nextReference) {
@@ -736,8 +794,16 @@
 			rememberAvoidanceReferences([previousReference, nextReference]);
 			void ensureReferenceQueueFilled();
 		} catch (cause) {
+			if (abortController.signal.aborted || requestGeneration !== referenceFeedRequestGeneration) {
+				return;
+			}
+
 			errorMessage = cause instanceof Error ? cause.message : 'Could not load the next reference.';
 		} finally {
+			if (activeImmediateReferenceAbortController === abortController) {
+				activeImmediateReferenceAbortController = undefined;
+			}
+
 			isLoadingReference = false;
 		}
 	}
@@ -864,7 +930,9 @@
 		{:else}
 			<div class="p-4" aria-live="polite">
 				<h1 id="reference-heading" class="m-0 text-base leading-tight">No references available</h1>
-				<p class="mt-1 text-sm text-gray-600">Try again later.</p>
+				<p class="mt-1 text-sm text-gray-600">
+					{errorMessage ?? 'Try again later.'}
+				</p>
 			</div>
 		{/if}
 	</section>

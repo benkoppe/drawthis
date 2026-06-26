@@ -399,6 +399,29 @@ test('allows no selected categories as an invalid state until a category is sele
 	await expect(page.getByRole('button', { name: 'Next' })).toBeEnabled();
 });
 
+test('keeps the category filter selection after reload', async ({ page }) => {
+	await page.goto('/');
+	await chooseOnlyCategory(page, 'plant');
+
+	await page.reload();
+
+	await expect(getCategoryFilterButton(page)).toHaveText(/1 of 5 categories/i);
+	await openCategoryFilter(page);
+	await expect(getCategoryFilterInput(page, 'Plant')).toBeChecked();
+	await expect(getCategoryFilterInput(page, 'Street')).not.toBeChecked();
+});
+
+test('keeps the empty invalid category filter state after reload', async ({ page }) => {
+	await page.goto('/');
+	await openCategoryFilter(page);
+	await getCategoryFilterInput(page, 'All categories').uncheck();
+
+	await page.reload();
+
+	await expect(getCategoryFilterButton(page)).toHaveText(/no categories/i);
+	await expect(page.getByRole('button', { name: 'Next' })).toBeDisabled();
+});
+
 test('uses anonymous feed seeds to vary initial references across devices', async ({ browser }) => {
 	const firstTitle = await getInitialReferenceTitleForSeed(browser, 'device-a');
 	const secondTitle = await getInitialReferenceTitleForSeed(browser, 'device-b');

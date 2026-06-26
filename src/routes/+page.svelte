@@ -4,6 +4,7 @@
 		appendReferenceHistoryEntry,
 		appendReferenceTimelineEntry,
 		areReferenceCategorySelectionsEqual,
+		createReferenceCategoryFilterSelection,
 		createReferenceTimelineEntry,
 		createReferenceTimelineTabId,
 		getLastViewedReferenceHistoryEntry,
@@ -15,9 +16,11 @@
 		mergeRecentReferenceIds,
 		parseRecentReferenceContexts,
 		parseRecentReferenceIds,
+		parseReferenceCategoryFilterSelection,
 		parseReferenceTabTimelineState,
 		normalizeReferenceCategories,
 		referenceCategories,
+		referenceCategoryFilterStorageKey,
 		referenceCategoryLabels,
 		referenceContextHistoryStorageKey,
 		referenceHistoryStorageKey,
@@ -27,12 +30,14 @@
 		requestReferenceFeed,
 		serializeRecentReferenceContexts,
 		serializeRecentReferenceIds,
+		serializeReferenceCategoryFilterSelection,
 		serializeReferenceTabTimelineState,
 		getReferenceCategorySelectionKey,
 		setLastViewedReferenceHistoryEntryId,
 		toReferenceFeedContextItem,
 		type DrawingReference,
 		type ReferenceCategory,
+		type ReferenceCategoryFilterMode,
 		type ReferenceFeedContextItem,
 		type ReferenceTabTimelineState,
 		type ReferenceTimelineEntry
@@ -47,6 +52,8 @@
 	const initialReferences = data.references;
 
 	let enabledCategories = $state<ReferenceCategory[]>([...referenceCategories]);
+	let categoryFilterMode = $state<ReferenceCategoryFilterMode>('all');
+	let categoryFilterStorageIsReady = $state(false);
 
 	let currentReference = $state<DrawingReference | undefined>();
 	let referenceQueue = $state<DrawingReference[]>(initialReferences.slice(1));
@@ -100,6 +107,19 @@
 			return;
 		}
 
+		const normalizedCategoryFilterMode =
+			categoryFilterMode === 'all' &&
+			normalizedEnabledCategories.length === referenceCategories.length
+				? 'all'
+				: 'custom';
+
+		if (normalizedCategoryFilterMode !== categoryFilterMode) {
+			categoryFilterMode = normalizedCategoryFilterMode;
+			return;
+		}
+
+		writeStoredReferenceCategoryFilterSelection();
+
 		if (normalizedEnabledCategories.length === 0) {
 			handleNoCategoriesSelected();
 			return;
@@ -150,6 +170,8 @@
 	}
 
 	async function initializePracticeState(): Promise<void> {
+		initializeStoredReferenceCategoryFilterSelection();
+
 		avoidanceReferenceContexts = mergeRecentReferenceContexts(
 			readStoredRecentReferenceContexts(),
 			data.recentReferences,
@@ -194,6 +216,38 @@
 			return parseRecentReferenceContexts(localStorage.getItem(referenceContextHistoryStorageKey));
 		} catch {
 			return [];
+		}
+	}
+
+	function initializeStoredReferenceCategoryFilterSelection(): void {
+		try {
+			const storedSelection = parseReferenceCategoryFilterSelection(
+				localStorage.getItem(referenceCategoryFilterStorageKey)
+			);
+
+			if (storedSelection !== undefined) {
+				categoryFilterMode = storedSelection.mode;
+				enabledCategories = storedSelection.enabledCategories;
+			}
+		} finally {
+			categoryFilterStorageIsReady = true;
+		}
+	}
+
+	function writeStoredReferenceCategoryFilterSelection(): void {
+		if (!categoryFilterStorageIsReady) {
+			return;
+		}
+
+		try {
+			localStorage.setItem(
+				referenceCategoryFilterStorageKey,
+				serializeReferenceCategoryFilterSelection(
+					createReferenceCategoryFilterSelection(categoryFilterMode, enabledCategories)
+				)
+			);
+		} catch {
+			// Ignore unavailable or full browser storage; the in-memory filter still applies.
 		}
 	}
 
@@ -644,7 +698,9 @@
 				<span class="font-semibold">Draw</span><span class="font-serif text-xl italic">This</span>
 			</span>
 		</p>
-		<CategoryFilter bind:enabled={enabledCategories} />
+		{#if categoryFilterStorageIsReady}
+			<CategoryFilter bind:enabled={enabledCategories} bind:mode={categoryFilterMode} />
+		{/if}
 	</header>
 
 	<section

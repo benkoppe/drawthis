@@ -1,12 +1,18 @@
 export { requestReferenceFeed, type RequestReferenceFeedOptions } from './api';
 export {
 	areReferenceCategorySelectionsEqual,
+	createReferenceCategoryFilterSelection,
 	getReferenceCategorySelectionKey,
 	isReferenceCategory,
 	normalizeReferenceCategories,
+	parseReferenceCategoryFilterSelection,
 	referenceCategories,
+	referenceCategoryFilterStorageKey,
 	referenceCategoryLabels,
-	type ReferenceCategory
+	serializeReferenceCategoryFilterSelection,
+	type ReferenceCategory,
+	type ReferenceCategoryFilterMode,
+	type ReferenceCategoryFilterSelection
 } from './categories';
 export {
 	defaultReferenceFeedCount,

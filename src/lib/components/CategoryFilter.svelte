@@ -3,10 +3,14 @@
 		normalizeReferenceCategories,
 		referenceCategories,
 		referenceCategoryLabels,
-		type ReferenceCategory
+		type ReferenceCategory,
+		type ReferenceCategoryFilterMode
 	} from '$lib/references';
 
-	let { enabled = $bindable() }: { enabled: ReferenceCategory[] } = $props();
+	let {
+		enabled = $bindable(),
+		mode = $bindable('all')
+	}: { enabled: ReferenceCategory[]; mode: ReferenceCategoryFilterMode } = $props();
 
 	let isOpen = $state(false);
 	let wrapper = $state<HTMLElement>();
@@ -52,12 +56,14 @@
 	}
 
 	function setCategoryEnabled(category: ReferenceCategory, shouldEnable: boolean): void {
+		mode = 'custom';
 		enabled = shouldEnable
 			? normalizeReferenceCategories([...normalizedEnabled, category])
 			: normalizedEnabled.filter((candidate) => candidate !== category);
 	}
 
 	function setAllEnabled(shouldEnable: boolean): void {
+		mode = shouldEnable ? 'all' : 'custom';
 		enabled = shouldEnable ? [...referenceCategories] : [];
 	}
 
@@ -96,11 +102,12 @@
 			return () => (triggerButton = undefined);
 		}}
 		type="button"
-		class="flex min-h-7 cursor-pointer items-center gap-1 rounded-md border border-gray-300 bg-white px-2 text-xs font-semibold text-gray-700 transition-colors hover:bg-gray-50 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-600"
+		class="flex min-h-7 min-w-36 cursor-pointer items-center justify-center gap-1 rounded-md border border-gray-300 bg-white px-2 text-xs font-semibold text-gray-700 transition-colors hover:bg-gray-50 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-600"
 		class:border-red-500={noneSelected}
 		class:text-red-800={noneSelected}
 		aria-haspopup="true"
 		aria-expanded={isOpen}
+		data-category-filter-mode={mode}
 		onclick={toggleOpen}
 	>
 		<svg

@@ -14,7 +14,8 @@ import { orderSeedsByBalancedTaxonomy } from './feed-seed-ordering';
 import {
 	defaultReferenceFeedPolicy,
 	type ReferenceFeedPolicy,
-	type ReferenceProviderPaginationPolicy
+	type ReferenceProviderPaginationPolicy,
+	type ReferenceSeedWeightPolicy
 } from './feed-policy';
 import type { ProviderSearchRequest, ReferenceProvider } from './provider';
 import { makeReferenceSeedMetadata, type ReferenceSearchSeed } from './reference-seed';
@@ -194,6 +195,40 @@ function orderCompatibleProviders(
 	);
 }
 
+function multiplyWeight(weight: number, multiplier: number | undefined): number {
+	return multiplier === undefined ? weight : weight * multiplier;
+}
+
+function getSeedPolicyWeight(
+	seed: ReferenceSearchSeed,
+	policy: ReferenceSeedWeightPolicy | undefined
+): number | undefined {
+	if (policy === undefined && seed.weight === undefined) {
+		return undefined;
+	}
+
+	let weight = seed.weight ?? 1;
+
+	for (const coverageTag of seed.coverageTags ?? []) {
+		weight = multiplyWeight(weight, policy?.coverageTagMultipliers?.[coverageTag]);
+	}
+
+	for (const sceneType of seed.sceneTypes ?? []) {
+		weight = multiplyWeight(weight, policy?.sceneTypeMultipliers?.[sceneType]);
+	}
+
+	if (seed.complexity !== undefined) {
+		weight = multiplyWeight(weight, policy?.complexityMultipliers?.[seed.complexity]);
+	}
+
+	return weight;
+}
+
+interface PlannedSeedProviderQueue {
+	seed: ReferenceSearchSeed;
+	providers: ReferenceProvider[];
+}
+
 export function createReferenceFeedPlan(
 	request: ReferenceFeedRequest = {},
 	options: CreateReferenceFeedPlanOptions
@@ -213,22 +248,31 @@ export function createReferenceFeedPlan(
 				(seed.topic === undefined || enabledTopicSet.has(seed.topic))
 		),
 		createReferencePlanningContext(request),
-		random
+		random,
+		(seed) => getSeedPolicyWeight(seed, policy.seedWeights)
 	);
-
-	for (const seed of seeds) {
-		const compatibleProviders = orderCompatibleProviders(
+	const seedProviderQueues: PlannedSeedProviderQueue[] = seeds.map((seed) => ({
+		seed,
+		providers: orderCompatibleProviders(
 			options.providers.filter((provider) =>
 				providerSupportsSubject(provider, seed.primarySubject)
 			),
 			policy,
 			random
-		);
+		)
+	}));
 
-		for (const provider of compatibleProviders) {
+	while (seedProviderQueues.some((queue) => queue.providers.length > 0)) {
+		for (const queue of seedProviderQueues) {
+			const provider = queue.providers.shift();
+
+			if (provider === undefined) {
+				continue;
+			}
+
 			const providerRequest = makeProviderSearchRequest(
 				provider,
-				seed,
+				queue.seed,
 				options.searchCount,
 				policy,
 				random
@@ -242,7 +286,7 @@ export function createReferenceFeedPlan(
 			selectedSearchKeys.add(searchKey);
 			searches.push({
 				provider,
-				seed,
+				seed: queue.seed,
 				request: providerRequest
 			});
 		}

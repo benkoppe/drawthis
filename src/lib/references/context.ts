@@ -162,5 +162,9 @@ export function compactReferenceFeedContextItem(
 		compactContext.selection = { seedId: context.selection.seedId };
 	}
 
+	if (context.training !== undefined) {
+		compactContext.training = context.training;
+	}
+
 	return compactContext;
 }

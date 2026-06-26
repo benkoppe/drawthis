@@ -131,4 +131,38 @@ describe('collectReferenceCandidates', () => {
 
 		expect(candidate?.reference.selection?.seed?.id).toBe('seed-one');
 	});
+
+	it('keeps collecting across multiple seeds before sequencing when policy requests seed coverage', async () => {
+		const requests: ProviderSearchRequest[] = [];
+		const provider = makeProvider((request) => {
+			requests.push(request);
+			return { references: [makeReference(request.seed?.id ?? 'available')] };
+		});
+		const candidates = await collectReferenceCandidates({
+			searches: [
+				makeSearch(provider, 'seed-one'),
+				makeSearch(provider, 'seed-two'),
+				makeSearch(provider, 'seed-three')
+			],
+			count: 1,
+			avoidancePolicy: { hardReferenceIds: new Set(), softReferenceIds: new Set() },
+			candidateCollectionPolicy: {
+				minimumSearchAttempts: 3,
+				minimumUniqueSeedCount: 3,
+				targetPreferredCandidateMultiplier: 1,
+				minimumPreferredCandidateCount: 1
+			}
+		});
+
+		expect(requests.map((request) => request.seed?.id)).toEqual([
+			'seed-one',
+			'seed-two',
+			'seed-three'
+		]);
+		expect(candidates.map((candidate) => candidate.reference.selection?.seed?.id)).toEqual([
+			'seed-one',
+			'seed-two',
+			'seed-three'
+		]);
+	});
 });

@@ -61,7 +61,8 @@ function groupSeedsByBalancedTaxonomy(seeds: readonly ReferenceSearchSeed[]): Su
 function makeSubjectSeedQueue(
 	group: SubjectSeedGroup,
 	context: readonly ReferenceFeedContextItem[],
-	random: () => number
+	random: () => number,
+	getSeedWeight: (seed: ReferenceSearchSeed) => number | undefined
 ): ReferenceSearchSeed[] {
 	const topicQueues = orderByScore(
 		group.topics,
@@ -73,7 +74,7 @@ function makeSubjectSeedQueue(
 		seeds: orderByScore(
 			topicGroup.seeds,
 			(seed) => getSeedPlanningScore(seed, context),
-			(seed) => seed.weight,
+			getSeedWeight,
 			random
 		)
 	}));
@@ -95,7 +96,8 @@ function makeSubjectSeedQueue(
 export function orderSeedsByBalancedTaxonomy(
 	seeds: readonly ReferenceSearchSeed[],
 	context: readonly ReferenceFeedContextItem[],
-	random: () => number
+	random: () => number,
+	getSeedWeight: (seed: ReferenceSearchSeed) => number | undefined = (seed) => seed.weight
 ): ReferenceSearchSeed[] {
 	const subjectGroups = orderByScore(
 		groupSeedsByBalancedTaxonomy(seeds),
@@ -104,7 +106,7 @@ export function orderSeedsByBalancedTaxonomy(
 		random
 	).map((subjectGroup) => ({
 		subject: subjectGroup.subject,
-		seeds: makeSubjectSeedQueue(subjectGroup, context, random)
+		seeds: makeSubjectSeedQueue(subjectGroup, context, random, getSeedWeight)
 	}));
 	const seedsInBalancedOrder: ReferenceSearchSeed[] = [];
 

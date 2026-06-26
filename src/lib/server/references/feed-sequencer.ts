@@ -1,14 +1,16 @@
 import type {
 	DrawingReference,
 	ReferenceFeedContextItem,
-	ReferencePracticeFocus,
-	ReferenceProviderId,
-	ReferenceSceneType,
-	ReferenceSeedMetadata,
-	ReferenceSubjectId,
-	ReferenceTopicId,
-	ReferenceVisualComplexity
+	ReferenceSeedMetadata
 } from '$lib/references';
+import {
+	countRecentFacetOverlap,
+	countRecentFacetUses,
+	createReferenceDiversityFacetsFromContext,
+	createReferenceDiversityFacetsFromReference,
+	referenceDiversityContextWindowSize,
+	type ReferenceDiversityFacets
+} from './reference-diversity';
 
 export const referenceSelectionRanks = {
 	preferred: 0,
@@ -39,10 +41,12 @@ interface CandidateScore {
 	samePreviousTopicPenalty: number;
 	recentTopicPenalty: number;
 	samePreviousSeedPenalty: number;
+	recentSeedPenalty: number;
 	recentSceneTypePenalty: number;
 	recentPracticeFocusPenalty: number;
 	recentComplexityPenalty: number;
 	samePreviousProviderPenalty: number;
+	recentProviderPenalty: number;
 	order: number;
 }
 
@@ -53,11 +57,13 @@ const recentSubjectUnitPenalty = 100;
 const samePreviousTopicPenalty = 350;
 const recentTopicUnitPenalty = 75;
 const samePreviousSeedPenalty = 300;
+const recentSeedUnitPenalty = 90;
 const recentSceneTypeUnitPenalty = 20;
 const recentPracticeFocusUnitPenalty = 12;
 const recentComplexityUnitPenalty = 8;
-const samePreviousProviderPenalty = 5;
-const recentContextWindowSize = 12;
+const samePreviousProviderPenalty = 80;
+const recentProviderUnitPenalty = 24;
+const recentContextWindowSize = referenceDiversityContextWindowSize;
 
 function compareScores(left: CandidateScore, right: CandidateScore): number {
 	return (
@@ -67,10 +73,12 @@ function compareScores(left: CandidateScore, right: CandidateScore): number {
 		left.samePreviousSeedPenalty - right.samePreviousSeedPenalty ||
 		left.recentSubjectPenalty - right.recentSubjectPenalty ||
 		left.recentTopicPenalty - right.recentTopicPenalty ||
+		left.recentSeedPenalty - right.recentSeedPenalty ||
 		left.recentSceneTypePenalty - right.recentSceneTypePenalty ||
 		left.recentPracticeFocusPenalty - right.recentPracticeFocusPenalty ||
 		left.recentComplexityPenalty - right.recentComplexityPenalty ||
 		left.samePreviousProviderPenalty - right.samePreviousProviderPenalty ||
+		left.recentProviderPenalty - right.recentProviderPenalty ||
 		left.order - right.order
 	);
 }
@@ -79,140 +87,77 @@ function isReferenceCandidate(reference: SequencingContextItem): reference is Re
 	return 'reference' in reference;
 }
 
-function getPrimarySubject(reference: SequencingContextItem): ReferenceSubjectId {
-	return isReferenceCandidate(reference)
-		? reference.reference.taxonomy.primarySubject
-		: reference.taxonomy.primarySubject;
-}
-
-function getTopic(reference: SequencingContextItem): ReferenceTopicId | undefined {
-	return isReferenceCandidate(reference)
-		? reference.reference.taxonomy.topic
-		: reference.taxonomy.topic;
-}
-
-function getProviderId(reference: SequencingContextItem): ReferenceProviderId | undefined {
-	return isReferenceCandidate(reference) ? reference.reference.provider.id : reference.providerId;
-}
-
-function getSeedId(reference: SequencingContextItem): string | undefined {
-	return isReferenceCandidate(reference)
-		? reference.reference.selection?.seed?.id
-		: reference.selection?.seedId;
-}
-
-function getSceneTypes(reference: SequencingContextItem): readonly ReferenceSceneType[] {
-	return isReferenceCandidate(reference)
-		? (reference.reference.training?.sceneTypes ?? [])
-		: (reference.training?.sceneTypes ?? []);
-}
-
-function getPracticeFocuses(reference: SequencingContextItem): readonly ReferencePracticeFocus[] {
-	return isReferenceCandidate(reference)
-		? (reference.reference.training?.focuses ?? [])
-		: (reference.training?.focuses ?? []);
-}
-
-function countRecentSubjectUses(
-	subject: ReferenceSubjectId,
-	context: readonly SequencingContextItem[]
-): number {
-	return context
-		.slice(-recentContextWindowSize)
-		.reduce((count, reference) => count + (getPrimarySubject(reference) === subject ? 1 : 0), 0);
-}
-
-function countRecentTopicUses(
-	topic: ReferenceTopicId | undefined,
-	context: readonly SequencingContextItem[]
-): number {
-	if (topic === undefined) {
-		return 0;
+function createSequencingFacets(reference: SequencingContextItem): ReferenceDiversityFacets {
+	if (!isReferenceCandidate(reference)) {
+		return createReferenceDiversityFacetsFromContext(reference);
 	}
 
-	return context
-		.slice(-recentContextWindowSize)
-		.reduce((count, reference) => count + (getTopic(reference) === topic ? 1 : 0), 0);
+	const facets = createReferenceDiversityFacetsFromReference(reference.reference);
+
+	return {
+		...facets,
+		seedId: facets.seedId ?? reference.seed?.id
+	};
 }
 
-function countRecentOverlap<T>(
-	values: readonly T[],
-	context: readonly SequencingContextItem[],
-	getValues: (reference: SequencingContextItem) => readonly T[]
-): number {
-	if (values.length === 0) {
-		return 0;
-	}
-
-	const valueSet = new Set(values);
-
-	return context.slice(-recentContextWindowSize).reduce((count, reference) => {
-		const overlapCount = getValues(reference).filter((value) => valueSet.has(value)).length;
-
-		return count + overlapCount;
-	}, 0);
-}
-
-function getComplexity(reference: SequencingContextItem): ReferenceVisualComplexity | undefined {
-	return isReferenceCandidate(reference)
-		? reference.reference.training?.complexity
-		: reference.training?.complexity;
-}
-
-function countRecentComplexityUses(
-	complexity: ReferenceVisualComplexity | undefined,
+function getRecentContextFacets(
 	context: readonly SequencingContextItem[]
-): number {
-	if (complexity === undefined) {
-		return 0;
-	}
-
-	return context
-		.slice(-recentContextWindowSize)
-		.reduce((count, reference) => count + (getComplexity(reference) === complexity ? 1 : 0), 0);
+): ReferenceDiversityFacets[] {
+	return context.slice(-recentContextWindowSize).map(createSequencingFacets);
 }
 
 function scoreCandidate(
 	candidate: ReferenceCandidate,
 	context: readonly SequencingContextItem[]
 ): CandidateScore {
-	const previousReference = context.at(-1);
-	const candidateSubject = candidate.reference.taxonomy.primarySubject;
-	const candidateTopic = candidate.reference.taxonomy.topic;
-	const candidateProviderId = candidate.reference.provider.id;
-	const candidateSeedId = candidate.reference.selection?.seed?.id ?? candidate.seed?.id;
-	const previousProviderId = previousReference ? getProviderId(previousReference) : undefined;
-	const previousSeedId = previousReference ? getSeedId(previousReference) : undefined;
-	const previousTopic = previousReference ? getTopic(previousReference) : undefined;
+	const recentFacets = getRecentContextFacets(context);
+	const previousFacets = recentFacets.at(-1);
+	const candidateFacets = createSequencingFacets(candidate);
 
 	return {
 		rank: candidate.rank,
 		samePreviousSubjectPenalty:
-			previousReference && getPrimarySubject(previousReference) === candidateSubject
-				? samePreviousSubjectPenalty
-				: 0,
+			candidateFacets.subject === previousFacets?.subject ? samePreviousSubjectPenalty : 0,
 		recentSubjectPenalty:
-			countRecentSubjectUses(candidateSubject, context) * recentSubjectUnitPenalty,
+			countRecentFacetUses(candidateFacets.subject, recentFacets, (facets) => facets.subject) *
+			recentSubjectUnitPenalty,
 		samePreviousTopicPenalty:
-			candidateTopic !== undefined && candidateTopic === previousTopic
+			candidateFacets.topic !== undefined && candidateFacets.topic === previousFacets?.topic
 				? samePreviousTopicPenalty
 				: 0,
-		recentTopicPenalty: countRecentTopicUses(candidateTopic, context) * recentTopicUnitPenalty,
+		recentTopicPenalty:
+			countRecentFacetUses(candidateFacets.topic, recentFacets, (facets) => facets.topic) *
+			recentTopicUnitPenalty,
 		samePreviousSeedPenalty:
-			candidateSeedId !== undefined && candidateSeedId === previousSeedId
+			candidateFacets.seedId !== undefined && candidateFacets.seedId === previousFacets?.seedId
 				? samePreviousSeedPenalty
 				: 0,
+		recentSeedPenalty:
+			countRecentFacetUses(candidateFacets.seedId, recentFacets, (facets) => facets.seedId) *
+			recentSeedUnitPenalty,
 		recentSceneTypePenalty:
-			countRecentOverlap(candidate.reference.training?.sceneTypes ?? [], context, getSceneTypes) *
-			recentSceneTypeUnitPenalty,
+			countRecentFacetOverlap(
+				candidateFacets.sceneTypes,
+				recentFacets,
+				(facets) => facets.sceneTypes
+			) * recentSceneTypeUnitPenalty,
 		recentPracticeFocusPenalty:
-			countRecentOverlap(candidate.reference.training?.focuses ?? [], context, getPracticeFocuses) *
+			countRecentFacetOverlap(candidateFacets.focuses, recentFacets, (facets) => facets.focuses) *
 			recentPracticeFocusUnitPenalty,
 		recentComplexityPenalty:
-			countRecentComplexityUses(candidate.reference.training?.complexity, context) *
-			recentComplexityUnitPenalty,
+			countRecentFacetUses(
+				candidateFacets.complexity,
+				recentFacets,
+				(facets) => facets.complexity
+			) * recentComplexityUnitPenalty,
 		samePreviousProviderPenalty:
-			previousProviderId === candidateProviderId ? samePreviousProviderPenalty : 0,
+			candidateFacets.providerId === previousFacets?.providerId ? samePreviousProviderPenalty : 0,
+		recentProviderPenalty:
+			countRecentFacetUses(
+				candidateFacets.providerId,
+				recentFacets,
+				(facets) => facets.providerId
+			) * recentProviderUnitPenalty,
 		order: candidate.order
 	};
 }

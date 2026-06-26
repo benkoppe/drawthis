@@ -118,4 +118,40 @@ describe('sequenceReferenceCandidates', () => {
 
 		expect(references.map((reference) => reference.id)).toEqual(['test:varied']);
 	});
+
+	it('avoids recently repeated providers when another candidate is otherwise equivalent', () => {
+		const repeatedProvider = makeCandidate('pexels', 'objects', 0);
+		repeatedProvider.reference.provider.id = 'pexels';
+		const alternateProvider = makeCandidate('openverse', 'objects', 1);
+		alternateProvider.reference.provider.id = 'openverse';
+
+		const references = sequenceReferenceCandidates([repeatedProvider, alternateProvider], {
+			count: 1,
+			recentReferences: [
+				{ id: 'pexels:recent', taxonomy: { primarySubject: 'objects' }, providerId: 'pexels' }
+			]
+		});
+
+		expect(references.map((reference) => reference.id)).toEqual(['test:openverse']);
+	});
+
+	it('avoids recently repeated seeds when another candidate is otherwise equivalent', () => {
+		const repeatedSeed = makeCandidate('seed-one', 'objects', 0);
+		repeatedSeed.reference.selection = { seed: { id: 'seed-one', label: 'Seed one' } };
+		const alternateSeed = makeCandidate('seed-two', 'objects', 1);
+		alternateSeed.reference.selection = { seed: { id: 'seed-two', label: 'Seed two' } };
+
+		const references = sequenceReferenceCandidates([repeatedSeed, alternateSeed], {
+			count: 1,
+			recentReferences: [
+				{
+					id: 'test:recent',
+					taxonomy: { primarySubject: 'objects' },
+					selection: { seedId: 'seed-one' }
+				}
+			]
+		});
+
+		expect(references.map((reference) => reference.id)).toEqual(['test:seed-two']);
+	});
 });

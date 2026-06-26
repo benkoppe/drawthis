@@ -1,5 +1,6 @@
 import { referenceSubjects, type DrawingReference } from '$lib/references';
 import type { PexelsProviderConfig } from '$lib/server/config';
+import { isProviderImageUsable } from '../provider-image-quality';
 import { parseRetryAfterSeconds, ReferenceProviderHttpError } from '../provider-error';
 import type { ProviderSearchRequest, ProviderSearchResult, ReferenceProvider } from '../provider';
 import {
@@ -111,6 +112,13 @@ function parsePexelsPhoto(value: unknown): PexelsPhoto | undefined {
 		return undefined;
 	}
 
+	const width = getPositiveNumber(value, 'width');
+	const height = getPositiveNumber(value, 'height');
+
+	if (!isProviderImageUsable({ url: imageUrl, width, height })) {
+		return undefined;
+	}
+
 	return {
 		id,
 		url,
@@ -118,8 +126,8 @@ function parsePexelsPhoto(value: unknown): PexelsPhoto | undefined {
 		photographer: getNonEmptyString(value, 'photographer'),
 		photographerUrl: getNonEmptyString(value, 'photographer_url'),
 		alt: getNonEmptyString(value, 'alt'),
-		width: getPositiveNumber(value, 'width'),
-		height: getPositiveNumber(value, 'height')
+		width,
+		height
 	};
 }
 

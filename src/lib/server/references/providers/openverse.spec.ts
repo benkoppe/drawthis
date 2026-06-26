@@ -142,7 +142,7 @@ describe('createOpenverseReferenceProvider', () => {
 		expect(result.nextCursor).toBeUndefined();
 	});
 
-	it('skips mature or incomplete Openverse results', async () => {
+	it('skips mature, incomplete, or unusably small Openverse results', async () => {
 		const provider = createOpenverseReferenceProvider({
 			apiBaseUrl: 'https://api.openverse.org/v1',
 			fetch: async () =>
@@ -150,14 +150,22 @@ describe('createOpenverseReferenceProvider', () => {
 					makeOpenverseResponse({
 						results: [
 							{ id: 'mature', url: 'https://example.com/mature.jpg', mature: true },
-							{ id: 'missing-url', foreign_landing_url: 'https://example.com/source' }
+							{ id: 'missing-url', foreign_landing_url: 'https://example.com/source' },
+							{
+								id: 'small',
+								foreign_landing_url: 'https://example.com/source/small',
+								url: 'https://images.example.com/small.jpg',
+								width: 100,
+								height: 100,
+								mature: false
+							}
 						]
 					})
 				)
 		});
 
 		const result = await provider.search({
-			count: 2,
+			count: 3,
 			primarySubject: 'objects',
 			query: 'tools on table'
 		});

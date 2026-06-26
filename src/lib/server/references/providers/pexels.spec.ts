@@ -219,7 +219,7 @@ describe('createPexelsReferenceProvider', () => {
 		expect(result.nextCursor).toBe('3');
 	});
 
-	it('skips incomplete Pexels photo results', async () => {
+	it('skips incomplete or unusably small Pexels photo results', async () => {
 		const provider = createPexelsReferenceProvider({
 			apiBaseUrl: 'https://api.pexels.com/v1',
 			apiKey: 'pexels-api-key',
@@ -228,14 +228,21 @@ describe('createPexelsReferenceProvider', () => {
 					makePexelsResponse({
 						photos: [
 							{ id: 1, url: 'https://www.pexels.com/photo/1/' },
-							{ id: 2, src: { large: 'https://images.pexels.com/photos/2/photo.jpeg' } }
+							{ id: 2, src: { large: 'https://images.pexels.com/photos/2/photo.jpeg' } },
+							{
+								id: 3,
+								url: 'https://www.pexels.com/photo/3/',
+								width: 120,
+								height: 120,
+								src: { large: 'https://images.pexels.com/photos/3/photo.jpeg' }
+							}
 						]
 					})
 				)
 		});
 
 		const result = await provider.search({
-			count: 2,
+			count: 3,
 			primarySubject: 'objects',
 			query: 'tools on table'
 		});

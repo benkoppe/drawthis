@@ -2,6 +2,7 @@ import type { DrawingReference, ReferenceSubjectId } from '$lib/references';
 import type { ProviderSearchRequest, ProviderSearchResult, ReferenceProvider } from './provider';
 import { describe, expect, it, vi } from 'vitest';
 import { getReferenceFeed } from './feed';
+import type { ReferenceFeedPolicy } from './feed-policy';
 import { localReferenceProvider } from './providers/local';
 import { hasReferenceTrainingMetadata } from './reference-metadata';
 
@@ -313,10 +314,68 @@ describe('getReferenceFeed', () => {
 
 		expect(feed.references.map((reference) => reference.taxonomy.primarySubject)).toEqual([
 			'people',
-			'nature',
+			'objects',
 			'places',
-			'objects'
+			'people'
 		]);
+	});
+
+	it('uses multiple seeds even within a narrowed subcategory feed', async () => {
+		const requests: ProviderSearchRequest[] = [];
+		const provider = makeProvider(
+			(request) => {
+				requests.push(request);
+				return { references: [makeReference(request.seed?.id ?? 'available', 'objects')] };
+			},
+			{ subjects: ['objects'], supportsSearch: true }
+		);
+		const policy: ReferenceFeedPolicy = {
+			candidateCollection: {
+				minimumSearchAttempts: 3,
+				minimumUniqueSeedCount: 3,
+				targetPreferredCandidateMultiplier: 1,
+				minimumPreferredCandidateCount: 3
+			},
+			seeds: [
+				{
+					id: 'objects-household-one',
+					label: 'Household one',
+					query: 'ordinary household object reference photo',
+					primarySubject: 'objects',
+					topic: 'household-objects'
+				},
+				{
+					id: 'objects-household-two',
+					label: 'Household two',
+					query: 'second household object reference photo',
+					primarySubject: 'objects',
+					topic: 'household-objects'
+				},
+				{
+					id: 'objects-household-three',
+					label: 'Household three',
+					query: 'third household object reference photo',
+					primarySubject: 'objects',
+					topic: 'household-objects'
+				}
+			]
+		};
+		const feed = await getReferenceFeed(
+			{
+				count: 3,
+				preferences: { enabledSubjects: ['objects'], enabledTopics: ['household-objects'] }
+			},
+			{ providers: [provider], policy, random: () => 0 }
+		);
+
+		expect(requests.map((request) => request.seed?.id)).toEqual([
+			'objects-household-one',
+			'objects-household-two',
+			'objects-household-three'
+		]);
+		expect(new Set(feed.references.map((reference) => reference.selection?.seed?.id))).toEqual(
+			new Set(['objects-household-one', 'objects-household-two', 'objects-household-three'])
+		);
 	});
 
 	it('starts a refilled batch with a different subject than the visible queue tail when possible', async () => {

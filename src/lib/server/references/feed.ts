@@ -74,7 +74,8 @@ export async function getReferenceFeed(
 		count,
 		avoidancePolicy,
 		searchCache: options.searchCache,
-		maxProviderSearchAttempts: policy.maxProviderSearchAttempts
+		maxProviderSearchAttempts: policy.maxProviderSearchAttempts,
+		candidateCollectionPolicy: policy.candidateCollection
 	});
 
 	return {

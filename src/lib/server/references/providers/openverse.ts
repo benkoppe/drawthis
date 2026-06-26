@@ -1,5 +1,6 @@
 import { referenceSubjects, type DrawingReference } from '$lib/references';
 import type { OpenverseProviderConfig } from '$lib/server/config';
+import { isProviderImageUsable } from '../provider-image-quality';
 import { parseRetryAfterSeconds, ReferenceProviderHttpError } from '../provider-error';
 import type { ProviderSearchRequest, ProviderSearchResult, ReferenceProvider } from '../provider';
 import {
@@ -63,6 +64,13 @@ function parseOpenverseImage(value: unknown): OpenverseImage | undefined {
 		return undefined;
 	}
 
+	const width = getPositiveNumber(value, 'width');
+	const height = getPositiveNumber(value, 'height');
+
+	if (!isProviderImageUsable({ url: imageUrl, width, height })) {
+		return undefined;
+	}
+
 	return {
 		id,
 		foreignLandingUrl,
@@ -74,8 +82,8 @@ function parseOpenverseImage(value: unknown): OpenverseImage | undefined {
 		licenseVersion: getNonEmptyString(value, 'license_version'),
 		licenseUrl: getNonEmptyString(value, 'license_url'),
 		attribution: getNonEmptyString(value, 'attribution'),
-		width: getPositiveNumber(value, 'width'),
-		height: getPositiveNumber(value, 'height')
+		width,
+		height
 	};
 }
 

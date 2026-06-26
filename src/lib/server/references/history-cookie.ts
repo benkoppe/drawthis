@@ -11,6 +11,7 @@ import {
 import type { Cookies } from '@sveltejs/kit';
 
 const referenceHistoryCookieMaxAgeSeconds = 60 * 60 * 24 * 30;
+const maxReferenceContextCookieValueLength = 1_500;
 
 const referenceHistoryCookieOptions = {
 	httpOnly: true,
@@ -40,13 +41,30 @@ export function readRecentReferenceContextsCookie(
 	return parseRecentReferenceContexts(cookies.get(referenceContextHistoryCookieName));
 }
 
+function serializeRecentReferenceContextsCookieValue(
+	referenceContexts: readonly ReferenceFeedContextItem[]
+): string {
+	let compactContexts = referenceContexts.map(compactReferenceFeedContextItem);
+	let serializedValue = serializeRecentReferenceContexts(compactContexts);
+
+	while (
+		serializedValue.length > maxReferenceContextCookieValueLength &&
+		compactContexts.length > 0
+	) {
+		compactContexts = compactContexts.slice(1);
+		serializedValue = serializeRecentReferenceContexts(compactContexts);
+	}
+
+	return serializedValue;
+}
+
 export function writeRecentReferenceContextsCookie(
 	cookies: Pick<Cookies, 'set'>,
 	referenceContexts: readonly ReferenceFeedContextItem[]
 ): void {
 	cookies.set(
 		referenceContextHistoryCookieName,
-		serializeRecentReferenceContexts(referenceContexts.map(compactReferenceFeedContextItem)),
+		serializeRecentReferenceContextsCookieValue(referenceContexts),
 		referenceHistoryCookieOptions
 	);
 }

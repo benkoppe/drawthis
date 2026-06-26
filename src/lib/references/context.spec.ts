@@ -93,6 +93,7 @@ describe('reference context helpers', () => {
 			id: 'pexels:1',
 			providerId: 'pexels',
 			taxonomy: { primarySubject: 'places', topic: 'rooms' },
+			training: { sceneTypes: ['interior'], focuses: ['perspective'] },
 			selection: { seedId: 'places-room-corner' }
 		});
 	});

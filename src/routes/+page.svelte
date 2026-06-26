@@ -75,9 +75,13 @@
 	let isAtTimelineTail = $derived(
 		referenceTimelineCursorIndex === referenceTimelineEntries.length - 1
 	);
+	let hasEnabledCategorySelection = $derived(
+		normalizeReferenceCategories(enabledCategories).length > 0
+	);
 	let canGoBack = $derived(isReady && referenceTimelineCursorIndex > 0);
 	let canGoNext = $derived(
 		isReady &&
+			hasEnabledCategorySelection &&
 			(!isAtTimelineTail || referenceQueue.length > 0 || (!isLoadingReference && !isRefillingQueue))
 	);
 	let loadedImageUrl = $state('');
@@ -91,13 +95,13 @@
 	$effect(() => {
 		const normalizedEnabledCategories = normalizeReferenceCategories(enabledCategories);
 
-		if (normalizedEnabledCategories.length === 0) {
-			enabledCategories = [...referenceCategories];
+		if (!areReferenceCategorySelectionsEqual(enabledCategories, normalizedEnabledCategories)) {
+			enabledCategories = normalizedEnabledCategories;
 			return;
 		}
 
-		if (!areReferenceCategorySelectionsEqual(enabledCategories, normalizedEnabledCategories)) {
-			enabledCategories = normalizedEnabledCategories;
+		if (normalizedEnabledCategories.length === 0) {
+			handleNoCategoriesSelected();
 			return;
 		}
 
@@ -291,11 +295,21 @@
 		persistReferenceTimeline();
 	}
 
-	function handleEnabledCategoriesChanged(categories: readonly ReferenceCategory[]): void {
+	function cancelActiveReferenceFeedRequests(): void {
 		referenceFeedRequestGeneration += 1;
 		activeQueueRefillAbortController?.abort();
 		activeQueueRefillAbortController = undefined;
 		isRefillingQueue = false;
+	}
+
+	function handleNoCategoriesSelected(): void {
+		cancelActiveReferenceFeedRequests();
+		activeEnabledCategoryKey = getReferenceCategorySelectionKey([]);
+		errorMessage = undefined;
+	}
+
+	function handleEnabledCategoriesChanged(categories: readonly ReferenceCategory[]): void {
+		cancelActiveReferenceFeedRequests();
 		errorMessage = undefined;
 
 		truncateForwardReferenceTimelineEntries();
@@ -448,7 +462,7 @@
 	}
 
 	async function ensureReferenceQueueFilled(options: { force?: boolean } = {}): Promise<void> {
-		if (isRefillingQueue) {
+		if (isRefillingQueue || !hasEnabledCategorySelection) {
 			return;
 		}
 

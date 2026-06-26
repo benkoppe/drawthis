@@ -101,12 +101,9 @@ async function openCategoryFilter(page: Page): Promise<void> {
 
 async function chooseOnlyCategory(page: Page, category: TestReferenceCategory): Promise<void> {
 	await openCategoryFilter(page);
-
-	for (const [candidateCategory, label] of Object.entries(categoryLabels)) {
-		if (candidateCategory !== category) {
-			await getCategoryFilterInput(page, label).uncheck();
-		}
-	}
+	await getCategoryFilterInput(page, 'All categories').uncheck();
+	await expect(page.getByRole('button', { name: /no categories/i })).toBeVisible();
+	await getCategoryFilterInput(page, categoryLabels[category]).check();
 
 	await expect(page.getByRole('button', { name: /1 of 5 categories/i })).toBeVisible();
 	await expect(getCategoryFilterInput(page, categoryLabels[category])).toBeChecked();
@@ -381,14 +378,25 @@ test('branches the active tab timeline after Back and category changes without d
 	expect(sessionTimeline?.entryIds).toEqual(expect.not.arrayContaining(['entry-c', 'entry-d']));
 });
 
-test('does not allow the category filter UI to reach no selected categories', async ({ page }) => {
+test('allows no selected categories as an invalid state until a category is selected', async ({
+	page
+}) => {
 	await page.goto('/');
-	await chooseOnlyCategory(page, 'plant');
-
 	await openCategoryFilter(page);
-	await expect(getCategoryFilterInput(page, 'Plant')).toBeDisabled();
-	await expect(getCategoryFilterInput(page, 'Plant')).toBeChecked();
-	await expect(page.getByRole('button', { name: /no categories/i })).toHaveCount(0);
+	await getCategoryFilterInput(page, 'All categories').uncheck();
+
+	await expect(page.getByRole('button', { name: /no categories/i })).toBeVisible();
+	await expect(
+		getCategoryFilterMenu(page).getByText('Select at least one category to continue.')
+	).toHaveCount(0);
+	await expect(page.getByText('Select at least one category to continue.')).toHaveCount(0);
+	await expect(page.getByRole('button', { name: 'Next' })).toBeDisabled();
+	await expect(getCategoryFilterInput(page, 'Plant')).toBeEnabled();
+	await expect(getCategoryFilterInput(page, 'Plant')).not.toBeChecked();
+
+	await getCategoryFilterInput(page, 'Plant').check();
+	await expect(page.getByRole('button', { name: /1 of 5 categories/i })).toBeVisible();
+	await expect(page.getByRole('button', { name: 'Next' })).toBeEnabled();
 });
 
 test('uses anonymous feed seeds to vary initial references across devices', async ({ browser }) => {

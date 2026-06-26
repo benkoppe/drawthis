@@ -52,21 +52,13 @@
 	}
 
 	function setCategoryEnabled(category: ReferenceCategory, shouldEnable: boolean): void {
-		const nextEnabled = shouldEnable
+		enabled = shouldEnable
 			? normalizeReferenceCategories([...normalizedEnabled, category])
 			: normalizedEnabled.filter((candidate) => candidate !== category);
-
-		if (nextEnabled.length === 0) {
-			return;
-		}
-
-		enabled = nextEnabled;
 	}
 
 	function setAllEnabled(shouldEnable: boolean): void {
-		if (shouldEnable) {
-			enabled = [...referenceCategories];
-		}
+		enabled = shouldEnable ? [...referenceCategories] : [];
 	}
 
 	function handleWindowPointerDown(event: PointerEvent): void {
@@ -105,6 +97,8 @@
 		}}
 		type="button"
 		class="flex min-h-7 cursor-pointer items-center gap-1 rounded-md border border-gray-300 bg-white px-2 text-xs font-semibold text-gray-700 transition-colors hover:bg-gray-50 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-600"
+		class:border-red-500={noneSelected}
+		class:text-red-800={noneSelected}
 		aria-haspopup="true"
 		aria-expanded={isOpen}
 		onclick={toggleOpen}
@@ -148,7 +142,6 @@
 					type="checkbox"
 					class="size-4 accent-gray-900"
 					checked={allSelected}
-					disabled={allSelected}
 					{@attach (node) => {
 						allCategoriesCheckbox = node;
 						return () => (allCategoriesCheckbox = undefined);
@@ -168,7 +161,6 @@
 						type="checkbox"
 						class="size-4 accent-gray-900"
 						checked={isCategoryEnabled(category)}
-						disabled={isCategoryEnabled(category) && selectedCategoryCount === 1}
 						onchange={(event) => setCategoryEnabled(category, event.currentTarget.checked)}
 					/>
 					{referenceCategoryLabels[category]}

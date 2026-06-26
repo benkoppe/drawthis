@@ -67,7 +67,7 @@ function hasEnoughPreferredSubjectCoverage(
 }
 
 function getPlannedSubjectCount(searches: readonly PlannedProviderSearch[]): number {
-	return new Set(searches.map((search) => search.primarySubject)).size;
+	return new Set(searches.map((search) => search.seed.primarySubject)).size;
 }
 
 export async function collectReferenceCandidates(
@@ -104,12 +104,10 @@ export async function collectReferenceCandidates(
 				continue;
 			}
 
+			const seed = reference.selection?.seed ?? search.request.seed;
 			const referenceWithSelectionContext = {
 				...reference,
-				selection: {
-					...reference.selection,
-					seed: reference.selection?.seed ?? search.request.seed
-				}
+				...(seed === undefined ? {} : { selection: { ...reference.selection, seed } })
 			};
 
 			candidatesByReferenceId.set(reference.id, {

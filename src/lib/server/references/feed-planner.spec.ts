@@ -71,7 +71,7 @@ describe('createReferenceFeedPlan', () => {
 			{ providers: [provider], policy: testPolicy, searchCount: 1, random: () => 0 }
 		);
 
-		expect(new Set(plan.searches.map((search) => search.primarySubject))).toEqual(
+		expect(new Set(plan.searches.map((search) => search.seed.primarySubject))).toEqual(
 			new Set(['objects', 'places', 'people'])
 		);
 	});
@@ -87,7 +87,7 @@ describe('createReferenceFeedPlan', () => {
 			{ providers: [provider], policy: testPolicy, searchCount: 1, random: () => 0 }
 		);
 
-		expect(plan.searches.map((search) => search.primarySubject)).toEqual(['places']);
+		expect(plan.searches.map((search) => search.seed.primarySubject)).toEqual(['places']);
 	});
 
 	it('passes generated queries only to search-capable providers', () => {
@@ -252,7 +252,7 @@ describe('createReferenceFeedPlan', () => {
 			{ providers: [provider], policy: weightedPolicy, searchCount: 1, random: () => 0.99 }
 		);
 
-		expect(plan.searches[0]?.primarySubject).toBe('places');
+		expect(plan.searches[0]?.seed.primarySubject).toBe('places');
 	});
 
 	it('restricts planned searches to enabled subcategories', () => {

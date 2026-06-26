@@ -20,7 +20,6 @@ import {
 
 export interface PlannedProviderSearch {
 	provider: ReferenceProvider;
-	primarySubject: ReferenceSubjectId;
 	seed: ReferenceSearchSeed;
 	request: ProviderSearchRequest;
 }
@@ -329,7 +328,6 @@ export function createReferenceFeedPlan(
 				selectedSearchKeys.add(searchKey);
 				subjectSearches.push({
 					provider,
-					primarySubject: seed.primarySubject,
 					seed,
 					request: providerRequest
 				});

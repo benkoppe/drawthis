@@ -3,6 +3,11 @@ import type { PexelsProviderConfig } from '$lib/server/config';
 import { parseRetryAfterSeconds, ReferenceProviderHttpError } from '../provider-error';
 import type { ProviderSearchRequest, ProviderSearchResult, ReferenceProvider } from '../provider';
 import {
+	createReferenceSelectionFromProviderRequest,
+	createReferenceTaxonomyFromProviderRequest,
+	createReferenceTrainingFromProviderRequest
+} from '../reference-metadata';
+import {
 	getNonEmptyString,
 	getPositiveInteger,
 	getPositiveNumber,
@@ -190,12 +195,9 @@ function makeAltText(photo: PexelsPhoto): string {
 }
 
 function toDrawingReference(photo: PexelsPhoto, request: ProviderSearchRequest): DrawingReference {
-	const primarySubject = request.primarySubject;
-
-	if (primarySubject === undefined) {
-		throw new Error('Pexels search requires a planned reference subject');
-	}
-
+	const taxonomy = createReferenceTaxonomyFromProviderRequest(request);
+	const training = createReferenceTrainingFromProviderRequest(request);
+	const selection = createReferenceSelectionFromProviderRequest(request);
 	const referenceImage: DrawingReference['image'] = {
 		url: photo.imageUrl,
 		alt: makeAltText(photo)
@@ -224,20 +226,6 @@ function toDrawingReference(photo: PexelsPhoto, request: ProviderSearchRequest):
 		attribution.creatorUrl = photo.photographerUrl;
 	}
 
-	const taxonomy: DrawingReference['taxonomy'] = {
-		primarySubject,
-		secondarySubjects: request.secondarySubjects
-	};
-	const training: DrawingReference['training'] = {
-		focuses: request.practiceFocuses,
-		sceneTypes: request.sceneTypes,
-		complexity: request.complexity
-	};
-
-	if (request.topic !== undefined) {
-		taxonomy.topic = request.topic;
-	}
-
 	return {
 		id: `${pexelsProviderId}:${photo.id}`,
 		provider: {
@@ -247,8 +235,8 @@ function toDrawingReference(photo: PexelsPhoto, request: ProviderSearchRequest):
 		},
 		title: makeTitle(photo),
 		taxonomy,
-		training,
-		selection: request.seed === undefined ? undefined : { seed: request.seed },
+		...(training === undefined ? {} : { training }),
+		...(selection === undefined ? {} : { selection }),
 		image: referenceImage,
 		attribution
 	};

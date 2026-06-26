@@ -363,21 +363,13 @@
 		});
 	}
 
-	function isReferenceInEnabledCategories(
-		reference: DrawingReference,
-		subjects: readonly ReferenceSubjectId[],
-		topics: readonly ReferenceTopicId[]
-	): boolean {
-		return isReferenceInCategorySelection(reference, subjects, topics);
-	}
-
 	function filterReferencesByEnabledCategories(
 		references: readonly DrawingReference[],
 		subjects: readonly ReferenceSubjectId[],
 		topics: readonly ReferenceTopicId[]
 	): DrawingReference[] {
 		return references.filter((reference) =>
-			isReferenceInEnabledCategories(reference, subjects, topics)
+			isReferenceInCategorySelection(reference, subjects, topics)
 		);
 	}
 

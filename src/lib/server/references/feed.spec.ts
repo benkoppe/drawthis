@@ -3,6 +3,7 @@ import type { ProviderSearchRequest, ProviderSearchResult, ReferenceProvider } f
 import { describe, expect, it, vi } from 'vitest';
 import { getReferenceFeed } from './feed';
 import { localReferenceProvider } from './providers/local';
+import { hasReferenceTrainingMetadata } from './reference-metadata';
 
 function makeReference(
 	id: string,
@@ -52,21 +53,27 @@ function makeProvider(
 
 			return {
 				...result,
-				references: result.references.map((reference) => ({
-					...reference,
-					taxonomy: {
-						...reference.taxonomy,
-						primarySubject: request.primarySubject ?? reference.taxonomy.primarySubject,
-						...(request.topic === undefined ? {} : { topic: request.topic })
-					},
-					training: {
+				references: result.references.map((reference) => {
+					const training = {
 						...reference.training,
 						focuses: request.practiceFocuses ?? reference.training?.focuses,
 						sceneTypes: request.sceneTypes ?? reference.training?.sceneTypes,
 						complexity: request.complexity ?? reference.training?.complexity
-					},
-					selection: request.seed === undefined ? reference.selection : { seed: request.seed }
-				}))
+					};
+					const selection =
+						request.seed === undefined ? reference.selection : { seed: request.seed };
+
+					return {
+						...reference,
+						taxonomy: {
+							...reference.taxonomy,
+							primarySubject: request.primarySubject ?? reference.taxonomy.primarySubject,
+							...(request.topic === undefined ? {} : { topic: request.topic })
+						},
+						...(hasReferenceTrainingMetadata(training) ? { training } : {}),
+						...(selection === undefined ? {} : { selection })
+					};
+				})
 			};
 		}
 	};

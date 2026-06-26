@@ -8,6 +8,10 @@ import {
 	type ReferenceVisualComplexity
 } from '$lib/references';
 import type { ProviderSearchRequest, ProviderSearchResult, ReferenceProvider } from '../provider';
+import {
+	createReferenceSelectionFromProviderRequest,
+	hasReferenceTrainingMetadata
+} from '../reference-metadata';
 
 const localProviderId = 'local';
 const localProviderName = 'DrawThis local references';
@@ -122,6 +126,7 @@ function toDrawingReference(
 		sceneTypes: item.sceneTypes,
 		complexity: item.complexity
 	};
+	const selection = createReferenceSelectionFromProviderRequest(request);
 
 	if (item.topic !== undefined) {
 		taxonomy.topic = item.topic;
@@ -136,8 +141,8 @@ function toDrawingReference(
 		},
 		title: item.title,
 		taxonomy,
-		training,
-		selection: request.seed === undefined ? undefined : { seed: request.seed },
+		...(hasReferenceTrainingMetadata(training) ? { training } : {}),
+		...(selection === undefined ? {} : { selection }),
 		image: {
 			url: item.imageUrl,
 			alt: item.alt

@@ -3,6 +3,11 @@ import type { OpenverseProviderConfig } from '$lib/server/config';
 import { parseRetryAfterSeconds, ReferenceProviderHttpError } from '../provider-error';
 import type { ProviderSearchRequest, ProviderSearchResult, ReferenceProvider } from '../provider';
 import {
+	createReferenceSelectionFromProviderRequest,
+	createReferenceTaxonomyFromProviderRequest,
+	createReferenceTrainingFromProviderRequest
+} from '../reference-metadata';
+import {
 	getBoolean,
 	getNonEmptyString,
 	getPositiveInteger,
@@ -173,12 +178,9 @@ function toDrawingReference(
 	image: OpenverseImage,
 	request: ProviderSearchRequest
 ): DrawingReference {
-	const primarySubject = request.primarySubject;
-
-	if (primarySubject === undefined) {
-		throw new Error('Openverse search requires a planned reference subject');
-	}
-
+	const taxonomy = createReferenceTaxonomyFromProviderRequest(request);
+	const training = createReferenceTrainingFromProviderRequest(request);
+	const selection = createReferenceSelectionFromProviderRequest(request);
 	const licenseName = formatLicenseName(image.license, image.licenseVersion);
 	const referenceImage: DrawingReference['image'] = {
 		url: image.imageUrl,
@@ -214,20 +216,6 @@ function toDrawingReference(
 		attribution.licenseUrl = image.licenseUrl;
 	}
 
-	const taxonomy: DrawingReference['taxonomy'] = {
-		primarySubject,
-		secondarySubjects: request.secondarySubjects
-	};
-	const training: DrawingReference['training'] = {
-		focuses: request.practiceFocuses,
-		sceneTypes: request.sceneTypes,
-		complexity: request.complexity
-	};
-
-	if (request.topic !== undefined) {
-		taxonomy.topic = request.topic;
-	}
-
 	return {
 		id: `${openverseProviderId}:${image.id}`,
 		provider: {
@@ -237,8 +225,8 @@ function toDrawingReference(
 		},
 		title: image.title ?? 'Untitled Openverse image',
 		taxonomy,
-		training,
-		selection: request.seed === undefined ? undefined : { seed: request.seed },
+		...(training === undefined ? {} : { training }),
+		...(selection === undefined ? {} : { selection }),
 		image: referenceImage,
 		attribution
 	};

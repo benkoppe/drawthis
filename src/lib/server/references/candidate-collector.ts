@@ -18,6 +18,10 @@ export interface ReferenceAvoidancePolicy {
 	softReferenceIds: ReadonlySet<string>;
 }
 
+export interface CollectReferenceCandidatesOptions {
+	maxSearchAttempts?: number;
+}
+
 function getReferenceSelectionRank(
 	reference: DrawingReference,
 	avoidancePolicy: ReferenceAvoidancePolicy
@@ -74,20 +78,35 @@ export async function collectReferenceCandidates(
 	searches: readonly PlannedProviderSearch[],
 	count: number,
 	avoidancePolicy: ReferenceAvoidancePolicy,
-	searchCache: ReferenceSearchCache | undefined
+	searchCache: ReferenceSearchCache | undefined,
+	options: CollectReferenceCandidatesOptions = {}
 ): Promise<ReferenceCandidate[]> {
 	const candidatesByReferenceId = new Map<string, ReferenceCandidate>();
 	const plannedSubjectCount = getPlannedSubjectCount(searches);
 	const providerFailures: ReferenceProviderFailureAttempt[] = [];
+	const failedProviderIds = new Set<string>();
+	const maxSearchAttempts = options.maxSearchAttempts ?? Number.POSITIVE_INFINITY;
+	let searchAttemptCount = 0;
 	let order = 0;
 
 	for (const search of searches) {
 		let result: ProviderSearchResult;
 
+		if (searchAttemptCount >= maxSearchAttempts) {
+			break;
+		}
+
+		if (failedProviderIds.has(search.provider.id)) {
+			continue;
+		}
+
+		searchAttemptCount += 1;
+
 		try {
 			result = await searchReferenceProvider(search.provider, search.request, searchCache);
 		} catch (cause) {
 			console.warn(`Reference provider "${search.provider.id}" failed`, cause);
+			failedProviderIds.add(search.provider.id);
 			providerFailures.push({
 				providerId: search.provider.id,
 				providerName: search.provider.name,

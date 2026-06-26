@@ -8,7 +8,7 @@ import {
 import { collectReferenceCandidates, type ReferenceAvoidancePolicy } from './candidate-collector';
 import type { ReferenceSearchCache } from './cache';
 import { createReferenceFeedPlan } from './feed-planner';
-import type { ReferenceFeedPolicy } from './feed-policy';
+import { defaultReferenceFeedPolicy, type ReferenceFeedPolicy } from './feed-policy';
 import { sequenceReferenceCandidates } from './feed-sequencer';
 import type { ReferenceProvider } from './provider';
 import { createReferenceProviders } from './providers';
@@ -61,10 +61,11 @@ export async function getReferenceFeed(
 ): Promise<ReferenceFeedResponse> {
 	const count = getRequestedCount(request.count);
 	const providers = options.providers ?? createReferenceProviders();
+	const policy = options.policy ?? defaultReferenceFeedPolicy;
 	const avoidancePolicy = getAvoidancePolicy(request);
 	const plan = createReferenceFeedPlan(request, {
 		providers,
-		policy: options.policy,
+		policy,
 		random: options.random,
 		searchCount: getProviderSearchCount(count)
 	});
@@ -72,7 +73,8 @@ export async function getReferenceFeed(
 		plan.searches,
 		count,
 		avoidancePolicy,
-		options.searchCache
+		options.searchCache,
+		{ maxSearchAttempts: policy.maxSearchAttemptsPerFeed }
 	);
 
 	return {

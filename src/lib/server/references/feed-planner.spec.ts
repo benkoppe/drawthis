@@ -238,18 +238,88 @@ describe('createReferenceFeedPlan', () => {
 		expect(plan.searches.map((search) => search.request.cursor)).toEqual([undefined, undefined]);
 	});
 
-	it('uses injected randomness for deterministic weighted subject ordering', () => {
+	it('does not let seed weights bias subject ordering', () => {
 		const provider = makeProvider({
 			id: 'search',
 			subjects: ['objects', 'places'],
 			supportsSearch: true
 		});
 		const weightedPolicy: ReferenceFeedPolicy = {
-			seeds: [testPolicy.seeds[0], { ...testPolicy.seeds[1], weight: 9 }]
+			seeds: [
+				{ ...testPolicy.seeds[0], weight: 99 },
+				{ ...testPolicy.seeds[1], weight: 1 }
+			]
 		};
 		const plan = createReferenceFeedPlan(
 			{},
+			{ providers: [provider], policy: weightedPolicy, searchCount: 1, random: () => 0.5 }
+		);
+
+		expect(plan.searches[0]?.seed.primarySubject).toBe('places');
+	});
+
+	it('uses seed weights only inside the same topic', () => {
+		const provider = makeProvider({ id: 'search', subjects: ['objects'], supportsSearch: true });
+		const weightedPolicy: ReferenceFeedPolicy = {
+			seeds: [
+				{ ...testPolicy.seeds[0], id: 'objects-light', weight: 1 },
+				{ ...testPolicy.seeds[0], id: 'objects-heavy', query: 'heavier desk objects', weight: 9 }
+			]
+		};
+		const plan = createReferenceFeedPlan(
+			{ preferences: { enabledSubjects: ['objects'] } },
 			{ providers: [provider], policy: weightedPolicy, searchCount: 1, random: () => 0.99 }
+		);
+
+		expect(plan.searches[0]?.seed.id).toBe('objects-heavy');
+	});
+
+	it('round-robins topics within a subject before repeating a topic', () => {
+		const provider = makeProvider({ id: 'search', subjects: ['objects'], supportsSearch: true });
+		const policy: ReferenceFeedPolicy = {
+			seeds: [
+				{ ...testPolicy.seeds[0], id: 'objects-household-1' },
+				{ ...testPolicy.seeds[0], id: 'objects-household-2', query: 'second household objects' },
+				{
+					...testPolicy.seeds[0],
+					id: 'objects-tools-1',
+					topic: 'tools',
+					query: 'first tools objects'
+				},
+				{
+					...testPolicy.seeds[0],
+					id: 'objects-tools-2',
+					topic: 'tools',
+					query: 'second tools objects'
+				}
+			]
+		};
+		const plan = createReferenceFeedPlan(
+			{ preferences: { enabledSubjects: ['objects'] } },
+			{ providers: [provider], policy, searchCount: 1, random: () => 0 }
+		);
+
+		expect(plan.searches.map((search) => search.seed.id)).toEqual([
+			'objects-household-1',
+			'objects-tools-1',
+			'objects-household-2',
+			'objects-tools-2'
+		]);
+	});
+
+	it('uses recent context to avoid repeated subjects before provider searches', () => {
+		const provider = makeProvider({
+			id: 'search',
+			subjects: ['objects', 'places'],
+			supportsSearch: true
+		});
+		const plan = createReferenceFeedPlan(
+			{
+				recentReferences: [
+					{ id: 'test:recent', taxonomy: { primarySubject: 'objects' }, providerId: 'test' }
+				]
+			},
+			{ providers: [provider], policy: testPolicy, searchCount: 1, random: () => 0 }
 		);
 
 		expect(plan.searches[0]?.seed.primarySubject).toBe('places');

@@ -237,7 +237,7 @@ describe('getReferenceFeed', () => {
 					{ providers: [failingProvider], random: () => 0 }
 				)
 			).rejects.toThrow(
-				'No reference providers returned references. Provider failures: Test provider (failing): 5 failed searches.'
+				'No reference providers returned references. Provider failures: Test provider (failing): 1 failed search.'
 			);
 			expect(warning).toHaveBeenCalledWith('Reference provider "failing" failed', providerError);
 		} finally {
@@ -273,7 +273,7 @@ describe('getReferenceFeed', () => {
 		expect(requests[0]).toMatchObject({
 			count: 10,
 			primarySubject: 'objects',
-			query: 'mug bottle tabletop still life photo'
+			query: 'ordinary lamp chair household objects reference photo'
 		});
 	});
 
@@ -313,9 +313,9 @@ describe('getReferenceFeed', () => {
 
 		expect(feed.references.map((reference) => reference.taxonomy.primarySubject)).toEqual([
 			'people',
+			'nature',
 			'places',
-			'objects',
-			'nature'
+			'objects'
 		]);
 	});
 
@@ -342,6 +342,57 @@ describe('getReferenceFeed', () => {
 			'places',
 			'objects'
 		]);
+	});
+
+	it('bounds provider search attempts using feed policy', async () => {
+		const requests: ProviderSearchRequest[] = [];
+		const provider = makeProvider(
+			(request) => {
+				requests.push(request);
+				return { references: [] };
+			},
+			{
+				id: 'empty',
+				subjects: ['objects'],
+				supportsSearch: true
+			}
+		);
+
+		await getReferenceFeed(
+			{ count: 1, preferences: { enabledSubjects: ['objects'] } },
+			{
+				providers: [provider],
+				policy: {
+					maxSearchAttemptsPerFeed: 2,
+					seeds: [
+						{
+							id: 'objects-household',
+							label: 'Household',
+							query: 'ordinary household object reference photo',
+							primarySubject: 'objects',
+							topic: 'household-objects'
+						},
+						{
+							id: 'objects-tools',
+							label: 'Tools',
+							query: 'ordinary tools object reference photo',
+							primarySubject: 'objects',
+							topic: 'tools'
+						},
+						{
+							id: 'objects-food',
+							label: 'Food',
+							query: 'ordinary food object reference photo',
+							primarySubject: 'objects',
+							topic: 'food'
+						}
+					]
+				},
+				random: () => 0
+			}
+		);
+
+		expect(requests).toHaveLength(2);
 	});
 
 	it('rejects invalid counts', async () => {

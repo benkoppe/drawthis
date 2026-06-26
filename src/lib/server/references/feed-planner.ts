@@ -5,22 +5,20 @@ import {
 	normalizeReferenceTopics,
 	referenceSubjects,
 	referenceTopics,
-	type ReferenceFeedContextItem,
 	type ReferenceFeedRequest,
-	type ReferencePracticeFocus,
-	type ReferenceSceneType,
-	type ReferenceSeedMetadata,
 	type ReferenceSubjectId,
-	type ReferenceTopicId,
-	type ReferenceVisualComplexity
+	type ReferenceTopicId
 } from '$lib/references';
-import type { ProviderSearchRequest, ReferenceProvider } from './provider';
+import { createReferencePlanningContext } from './feed-planning-context';
+import { orderSeedsByBalancedTaxonomy } from './feed-seed-ordering';
 import {
 	defaultReferenceFeedPolicy,
 	type ReferenceFeedPolicy,
-	type ReferenceProviderPaginationPolicy,
-	type ReferenceSearchSeed
+	type ReferenceProviderPaginationPolicy
 } from './feed-policy';
+import type { ProviderSearchRequest, ReferenceProvider } from './provider';
+import { makeReferenceSeedMetadata, type ReferenceSearchSeed } from './reference-seed';
+import { weightedShuffle } from './weighted-selection';
 
 export interface PlannedProviderSearch {
 	provider: ReferenceProvider;
@@ -37,88 +35,6 @@ export interface CreateReferenceFeedPlanOptions {
 	searchCount: number;
 	policy?: ReferenceFeedPolicy;
 	random?: () => number;
-}
-
-interface WeightedItem<T> {
-	item: T;
-	weight: number;
-}
-
-interface TopicSeedGroup {
-	subject: ReferenceSubjectId;
-	topic?: ReferenceTopicId;
-	seeds: ReferenceSearchSeed[];
-}
-
-interface SubjectSeedGroup {
-	subject: ReferenceSubjectId;
-	topics: TopicSeedGroup[];
-}
-
-interface ScoredItem<T> {
-	item: T;
-	score: number;
-	order: number;
-}
-
-const defaultWeight = 1;
-const planningContextWindowSize = 12;
-const samePreviousSubjectPenalty = 1_000;
-const recentSubjectUnitPenalty = 100;
-const samePreviousTopicPenalty = 450;
-const recentTopicUnitPenalty = 80;
-const samePreviousSeedPenalty = 350;
-const recentSeedUnitPenalty = 125;
-const recentSceneTypeUnitPenalty = 20;
-const recentPracticeFocusUnitPenalty = 12;
-const recentComplexityUnitPenalty = 8;
-
-function normalizeWeight(weight: number | undefined): number {
-	if (weight === undefined) {
-		return defaultWeight;
-	}
-
-	return weight > 0 ? weight : 0;
-}
-
-function weightedShuffle<T>(items: readonly WeightedItem<T>[], random: () => number): T[] {
-	const remaining = items.filter(({ weight }) => weight > 0);
-	const shuffled: T[] = [];
-
-	while (remaining.length > 0) {
-		const totalWeight = remaining.reduce((total, { weight }) => total + weight, 0);
-		let target = random() * totalWeight;
-		let selectedIndex = remaining.length - 1;
-
-		for (let index = 0; index < remaining.length; index += 1) {
-			target -= remaining[index].weight;
-
-			if (target < 0) {
-				selectedIndex = index;
-				break;
-			}
-		}
-
-		const [selected] = remaining.splice(selectedIndex, 1);
-		shuffled.push(selected.item);
-	}
-
-	return shuffled;
-}
-
-function orderByScore<T>(
-	items: readonly T[],
-	getScore: (item: T) => number,
-	getWeight: (item: T) => number | undefined,
-	random: () => number
-): T[] {
-	return weightedShuffle(
-		items.map((item) => ({ item, weight: normalizeWeight(getWeight(item)) })),
-		random
-	)
-		.map((item, order): ScoredItem<T> => ({ item, order, score: getScore(item) }))
-		.sort((left, right) => left.score - right.score || left.order - right.order)
-		.map(({ item }) => item);
 }
 
 function getEnabledSubjects(request: ReferenceFeedRequest): ReferenceSubjectId[] | undefined {
@@ -190,14 +106,6 @@ function getRandomInitialCursorPage(
 	return String(Math.floor(randomValue * (max - min + 1)) + min);
 }
 
-function makeSeedMetadata(seed: ReferenceSearchSeed): ReferenceSeedMetadata {
-	return {
-		id: seed.id,
-		label: seed.label,
-		query: seed.query
-	};
-}
-
 function makeProviderSearchRequest(
 	provider: ReferenceProvider,
 	seed: ReferenceSearchSeed,
@@ -208,7 +116,7 @@ function makeProviderSearchRequest(
 	const request: ProviderSearchRequest = {
 		count,
 		primarySubject: seed.primarySubject,
-		seed: makeSeedMetadata(seed)
+		seed: makeReferenceSeedMetadata(seed)
 	};
 
 	if (seed.topic !== undefined) {
@@ -280,241 +188,10 @@ function orderCompatibleProviders(
 	return weightedShuffle(
 		providers.map((provider) => ({
 			item: provider,
-			weight: normalizeWeight(policy.providerWeights?.[provider.id])
+			weight: policy.providerWeights?.[provider.id]
 		})),
 		random
 	);
-}
-
-function getPlanningContext(request: ReferenceFeedRequest): ReferenceFeedContextItem[] {
-	return [...(request.recentReferences ?? []), ...(request.precedingReferences ?? [])].slice(
-		-planningContextWindowSize
-	);
-}
-
-function getRecentContext(
-	context: readonly ReferenceFeedContextItem[]
-): readonly ReferenceFeedContextItem[] {
-	return context.slice(-planningContextWindowSize);
-}
-
-function getPreviousContextItem(
-	context: readonly ReferenceFeedContextItem[]
-): ReferenceFeedContextItem | undefined {
-	return context.at(-1);
-}
-
-function countRecentSubjects(
-	subject: ReferenceSubjectId,
-	context: readonly ReferenceFeedContextItem[]
-): number {
-	return getRecentContext(context).reduce(
-		(count, reference) => count + (reference.taxonomy.primarySubject === subject ? 1 : 0),
-		0
-	);
-}
-
-function countRecentTopics(
-	topic: ReferenceTopicId | undefined,
-	context: readonly ReferenceFeedContextItem[]
-): number {
-	if (topic === undefined) {
-		return 0;
-	}
-
-	return getRecentContext(context).reduce(
-		(count, reference) => count + (reference.taxonomy.topic === topic ? 1 : 0),
-		0
-	);
-}
-
-function countRecentSeeds(seedId: string, context: readonly ReferenceFeedContextItem[]): number {
-	return getRecentContext(context).reduce(
-		(count, reference) => count + (reference.selection?.seedId === seedId ? 1 : 0),
-		0
-	);
-}
-
-function countRecentOverlap<T>(
-	values: readonly T[] | undefined,
-	context: readonly ReferenceFeedContextItem[],
-	getValues: (reference: ReferenceFeedContextItem) => readonly T[] | undefined
-): number {
-	if (values === undefined || values.length === 0) {
-		return 0;
-	}
-
-	const valueSet = new Set(values);
-
-	return getRecentContext(context).reduce((count, reference) => {
-		const overlapCount = (getValues(reference) ?? []).filter((value) => valueSet.has(value)).length;
-
-		return count + overlapCount;
-	}, 0);
-}
-
-function countRecentComplexity(
-	complexity: ReferenceVisualComplexity | undefined,
-	context: readonly ReferenceFeedContextItem[]
-): number {
-	if (complexity === undefined) {
-		return 0;
-	}
-
-	return getRecentContext(context).reduce(
-		(count, reference) => count + (reference.training?.complexity === complexity ? 1 : 0),
-		0
-	);
-}
-
-function getSubjectPlanningScore(
-	subject: ReferenceSubjectId,
-	context: readonly ReferenceFeedContextItem[]
-): number {
-	const previousReference = getPreviousContextItem(context);
-
-	return (
-		(previousReference?.taxonomy.primarySubject === subject ? samePreviousSubjectPenalty : 0) +
-		countRecentSubjects(subject, context) * recentSubjectUnitPenalty
-	);
-}
-
-function getTopicPlanningScore(
-	group: TopicSeedGroup,
-	context: readonly ReferenceFeedContextItem[]
-): number {
-	const previousReference = getPreviousContextItem(context);
-
-	return (
-		(group.topic !== undefined && previousReference?.taxonomy.topic === group.topic
-			? samePreviousTopicPenalty
-			: 0) +
-		countRecentTopics(group.topic, context) * recentTopicUnitPenalty
-	);
-}
-
-function getSeedPlanningScore(
-	seed: ReferenceSearchSeed,
-	context: readonly ReferenceFeedContextItem[]
-): number {
-	const previousReference = getPreviousContextItem(context);
-	const previousSeedId = previousReference?.selection?.seedId;
-
-	return (
-		(seed.id === previousSeedId ? samePreviousSeedPenalty : 0) +
-		countRecentSeeds(seed.id, context) * recentSeedUnitPenalty +
-		countRecentOverlap(
-			seed.sceneTypes,
-			context,
-			(reference): readonly ReferenceSceneType[] | undefined => reference.training?.sceneTypes
-		) *
-			recentSceneTypeUnitPenalty +
-		countRecentOverlap(
-			seed.focuses,
-			context,
-			(reference): readonly ReferencePracticeFocus[] | undefined => reference.training?.focuses
-		) *
-			recentPracticeFocusUnitPenalty +
-		countRecentComplexity(seed.complexity, context) * recentComplexityUnitPenalty
-	);
-}
-
-function getTopicKey(topic: ReferenceTopicId | undefined): string {
-	return topic ?? '';
-}
-
-function groupSeedsByBalancedTaxonomy(seeds: readonly ReferenceSearchSeed[]): SubjectSeedGroup[] {
-	const groups = new Map<ReferenceSubjectId, Map<string, TopicSeedGroup>>();
-
-	for (const seed of seeds) {
-		let subjectGroup = groups.get(seed.primarySubject);
-
-		if (subjectGroup === undefined) {
-			subjectGroup = new Map<string, TopicSeedGroup>();
-			groups.set(seed.primarySubject, subjectGroup);
-		}
-
-		const topicKey = getTopicKey(seed.topic);
-		let topicGroup = subjectGroup.get(topicKey);
-
-		if (topicGroup === undefined) {
-			topicGroup = { subject: seed.primarySubject, topic: seed.topic, seeds: [] };
-			subjectGroup.set(topicKey, topicGroup);
-		}
-
-		topicGroup.seeds.push(seed);
-	}
-
-	return referenceSubjects.flatMap((subject) => {
-		const topicGroups = groups.get(subject);
-
-		return topicGroups === undefined
-			? []
-			: [{ subject, topics: [...topicGroups.values()] } satisfies SubjectSeedGroup];
-	});
-}
-
-function makeSubjectSeedQueue(
-	group: SubjectSeedGroup,
-	context: readonly ReferenceFeedContextItem[],
-	random: () => number
-): ReferenceSearchSeed[] {
-	const topicQueues = orderByScore(
-		group.topics,
-		(topicGroup) => getTopicPlanningScore(topicGroup, context),
-		() => 1,
-		random
-	).map((topicGroup) => ({
-		...topicGroup,
-		seeds: orderByScore(
-			topicGroup.seeds,
-			(seed) => getSeedPlanningScore(seed, context),
-			(seed) => seed.weight,
-			random
-		)
-	}));
-	const queue: ReferenceSearchSeed[] = [];
-
-	while (topicQueues.some((topicQueue) => topicQueue.seeds.length > 0)) {
-		for (const topicQueue of topicQueues) {
-			const seed = topicQueue.seeds.shift();
-
-			if (seed !== undefined) {
-				queue.push(seed);
-			}
-		}
-	}
-
-	return queue;
-}
-
-function orderSeedsByBalancedTaxonomy(
-	seeds: readonly ReferenceSearchSeed[],
-	context: readonly ReferenceFeedContextItem[],
-	random: () => number
-): ReferenceSearchSeed[] {
-	const subjectGroups = orderByScore(
-		groupSeedsByBalancedTaxonomy(seeds),
-		(group) => getSubjectPlanningScore(group.subject, context),
-		() => 1,
-		random
-	).map((subjectGroup) => ({
-		subject: subjectGroup.subject,
-		seeds: makeSubjectSeedQueue(subjectGroup, context, random)
-	}));
-	const seedsInBalancedOrder: ReferenceSearchSeed[] = [];
-
-	while (subjectGroups.some((subjectGroup) => subjectGroup.seeds.length > 0)) {
-		for (const subjectGroup of subjectGroups) {
-			const seed = subjectGroup.seeds.shift();
-
-			if (seed !== undefined) {
-				seedsInBalancedOrder.push(seed);
-			}
-		}
-	}
-
-	return seedsInBalancedOrder;
 }
 
 export function createReferenceFeedPlan(
@@ -535,7 +212,7 @@ export function createReferenceFeedPlan(
 				enabledSubjectSet.has(seed.primarySubject) &&
 				(seed.topic === undefined || enabledTopicSet.has(seed.topic))
 		),
-		getPlanningContext(request),
+		createReferencePlanningContext(request),
 		random
 	);
 

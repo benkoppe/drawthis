@@ -19,7 +19,11 @@ export interface ReferenceAvoidancePolicy {
 }
 
 export interface CollectReferenceCandidatesOptions {
-	maxSearchAttempts?: number;
+	searches: readonly PlannedProviderSearch[];
+	count: number;
+	avoidancePolicy: ReferenceAvoidancePolicy;
+	searchCache?: ReferenceSearchCache;
+	maxProviderSearchAttempts?: number;
 }
 
 function getReferenceSelectionRank(
@@ -74,25 +78,24 @@ function getPlannedSubjectCount(searches: readonly PlannedProviderSearch[]): num
 	return new Set(searches.map((search) => search.seed.primarySubject)).size;
 }
 
-export async function collectReferenceCandidates(
-	searches: readonly PlannedProviderSearch[],
-	count: number,
-	avoidancePolicy: ReferenceAvoidancePolicy,
-	searchCache: ReferenceSearchCache | undefined,
-	options: CollectReferenceCandidatesOptions = {}
-): Promise<ReferenceCandidate[]> {
+export async function collectReferenceCandidates({
+	searches,
+	count,
+	avoidancePolicy,
+	searchCache,
+	maxProviderSearchAttempts = Number.POSITIVE_INFINITY
+}: CollectReferenceCandidatesOptions): Promise<ReferenceCandidate[]> {
 	const candidatesByReferenceId = new Map<string, ReferenceCandidate>();
 	const plannedSubjectCount = getPlannedSubjectCount(searches);
 	const providerFailures: ReferenceProviderFailureAttempt[] = [];
 	const failedProviderIds = new Set<string>();
-	const maxSearchAttempts = options.maxSearchAttempts ?? Number.POSITIVE_INFINITY;
 	let searchAttemptCount = 0;
 	let order = 0;
 
 	for (const search of searches) {
 		let result: ProviderSearchResult;
 
-		if (searchAttemptCount >= maxSearchAttempts) {
+		if (searchAttemptCount >= maxProviderSearchAttempts) {
 			break;
 		}
 

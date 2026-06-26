@@ -69,13 +69,13 @@ export async function getReferenceFeed(
 		random: options.random,
 		searchCount: getProviderSearchCount(count)
 	});
-	const candidates = await collectReferenceCandidates(
-		plan.searches,
+	const candidates = await collectReferenceCandidates({
+		searches: plan.searches,
 		count,
 		avoidancePolicy,
-		options.searchCache,
-		{ maxSearchAttempts: policy.maxSearchAttemptsPerFeed }
-	);
+		searchCache: options.searchCache,
+		maxProviderSearchAttempts: policy.maxProviderSearchAttempts
+	});
 
 	return {
 		references: sequenceReferenceCandidates(candidates, {

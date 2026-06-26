@@ -363,7 +363,7 @@ describe('getReferenceFeed', () => {
 			{
 				providers: [provider],
 				policy: {
-					maxSearchAttemptsPerFeed: 2,
+					maxProviderSearchAttempts: 2,
 					seeds: [
 						{
 							id: 'objects-household',

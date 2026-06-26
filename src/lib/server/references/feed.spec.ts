@@ -112,6 +112,28 @@ describe('getReferenceFeed', () => {
 		expect(feed.references).toHaveLength(1);
 	});
 
+	it('avoids references supplied as recent context without requiring duplicate id history', async () => {
+		const recentReference = makeReference('recent');
+		const preferredReference = makeReference('preferred');
+		const provider = makeProvider(() => ({ references: [recentReference, preferredReference] }));
+		const feed = await getReferenceFeed(
+			{
+				count: 1,
+				recentReferences: [
+					{
+						id: recentReference.id,
+						taxonomy: recentReference.taxonomy,
+						providerId: recentReference.provider.id
+					}
+				],
+				preferences: { enabledSubjects: ['objects'] }
+			},
+			{ providers: [provider], random: () => 0 }
+		);
+
+		expect(feed.references.map((reference) => reference.id)).toEqual([preferredReference.id]);
+	});
+
 	it('avoids the current reference even when recent history is exhausted', async () => {
 		const feed = await getReferenceFeed(
 			{

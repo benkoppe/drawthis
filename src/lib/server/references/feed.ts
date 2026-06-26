@@ -43,10 +43,15 @@ function getAvoidancePolicy(request: ReferenceFeedRequest): ReferenceAvoidancePo
 		hardReferenceIds.add(reference.id);
 	}
 
+	const recentReferenceIds = [
+		...(request.recentReferenceIds ?? []),
+		...(request.recentReferences ?? []).map((reference) => reference.id)
+	];
+
 	return {
 		hardReferenceIds,
 		softReferenceIds: new Set(
-			(request.recentReferenceIds ?? []).filter((referenceId) => !hardReferenceIds.has(referenceId))
+			recentReferenceIds.filter((referenceId) => !hardReferenceIds.has(referenceId))
 		)
 	};
 }

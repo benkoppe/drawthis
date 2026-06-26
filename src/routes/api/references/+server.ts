@@ -44,7 +44,7 @@ export const POST: RequestHandler = async ({ cookies, platform, request }) => {
 		);
 		const recentReferenceIds = mergeRecentReferenceIds(
 			readRecentReferenceIdsCookie(cookies),
-			cookieReferenceContexts.map((reference) => reference.id),
+			recentReferenceContexts.map((reference) => reference.id),
 			parsedRequest.recentReferenceIds ?? [],
 			precedingReferenceIds,
 			parsedRequest.currentReferenceId ? [parsedRequest.currentReferenceId] : []

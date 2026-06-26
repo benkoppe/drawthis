@@ -1,17 +1,18 @@
 import {
-	isReferencePracticeMixMode,
 	isReferenceSubject,
+	isReferenceTopic,
 	normalizeReferenceSubjects,
+	normalizeReferenceTopics,
 	referenceSubjects,
+	referenceTopics,
 	type ReferenceFeedRequest,
-	type ReferencePracticeMixMode,
-	type ReferenceSubjectId
+	type ReferenceSubjectId,
+	type ReferenceTopicId
 } from '$lib/references';
 import type { ProviderSearchRequest, ReferenceProvider } from './provider';
 import {
 	defaultReferenceFeedPolicy,
 	type ReferenceFeedPolicy,
-	type ReferencePracticeModePolicy,
 	type ReferenceProviderPaginationPolicy,
 	type ReferenceSearchSeed
 } from './feed-policy';
@@ -40,7 +41,6 @@ interface WeightedItem<T> {
 }
 
 const defaultWeight = 1;
-const defaultPracticeMode: ReferencePracticeMixMode = 'balanced';
 
 function normalizeWeight(weight: number | undefined): number {
 	if (weight === undefined) {
@@ -95,25 +95,33 @@ function getEnabledSubjects(request: ReferenceFeedRequest): ReferenceSubjectId[]
 	return normalizeReferenceSubjects(enabledSubjects);
 }
 
-function getPracticeMode(request: ReferenceFeedRequest): ReferencePracticeMixMode {
-	const mode = request.preferences?.practiceMode;
+function getEnabledTopics(
+	request: ReferenceFeedRequest,
+	enabledSubjects: readonly ReferenceSubjectId[]
+): ReferenceTopicId[] | undefined {
+	const enabledTopics = request.preferences?.enabledTopics;
 
-	if (mode === undefined) {
-		return defaultPracticeMode;
+	if (enabledTopics === undefined) {
+		return undefined;
 	}
 
-	if (!isReferencePracticeMixMode(mode)) {
-		throw new Error('practiceMode contains an unsupported value');
+	if (enabledTopics.length === 0) {
+		throw new Error('enabledTopics must include at least one topic');
 	}
 
-	return mode;
-}
+	for (const topic of enabledTopics) {
+		if (!isReferenceTopic(topic)) {
+			throw new Error('enabledTopics contains an unsupported topic');
+		}
+	}
 
-function getPracticeModePolicy(
-	policy: ReferenceFeedPolicy,
-	mode: ReferencePracticeMixMode
-): ReferencePracticeModePolicy | undefined {
-	return policy.practiceModes?.find((modePolicy) => modePolicy.mode === mode);
+	const normalizedTopics = normalizeReferenceTopics(enabledTopics, enabledSubjects);
+
+	if (normalizedTopics.length === 0) {
+		throw new Error('enabledTopics must include at least one topic for an enabled subject');
+	}
+
+	return normalizedTopics;
 }
 
 function getRandomInitialCursorPage(
@@ -224,43 +232,8 @@ function orderCompatibleProviders(
 	);
 }
 
-function getSeedModeWeight(
-	seed: ReferenceSearchSeed,
-	modePolicy: ReferencePracticeModePolicy | undefined
-): number {
-	if (modePolicy === undefined) {
-		return defaultWeight;
-	}
-
-	const subjectWeight = modePolicy.subjectWeights?.[seed.primarySubject];
-	let weight = subjectWeight ?? defaultWeight;
-
-	if (modePolicy.seedWeights?.[seed.id] !== undefined) {
-		weight *= normalizeWeight(modePolicy.seedWeights[seed.id]);
-	}
-
-	if (seed.sceneTypes !== undefined) {
-		for (const sceneType of seed.sceneTypes) {
-			if (modePolicy.sceneTypeWeights?.[sceneType] !== undefined) {
-				weight *= normalizeWeight(modePolicy.sceneTypeWeights[sceneType]);
-			}
-		}
-	}
-
-	if (seed.practiceFocuses !== undefined) {
-		for (const focus of seed.practiceFocuses) {
-			if (modePolicy.practiceFocusWeights?.[focus] !== undefined) {
-				weight *= normalizeWeight(modePolicy.practiceFocusWeights[focus]);
-			}
-		}
-	}
-
-	return weight;
-}
-
 function groupSeedsBySubject(
 	seeds: readonly ReferenceSearchSeed[],
-	modePolicy: ReferencePracticeModePolicy | undefined,
 	random: () => number
 ): ReferenceSearchSeed[][] {
 	const groups = new Map<ReferenceSubjectId, ReferenceSearchSeed[]>();
@@ -280,7 +253,7 @@ function groupSeedsBySubject(
 			}
 
 			const subjectWeight = seedsForSubject.reduce(
-				(total, seed) => total + normalizeWeight(seed.weight) * getSeedModeWeight(seed, modePolicy),
+				(total, seed) => total + normalizeWeight(seed.weight),
 				0
 			);
 
@@ -289,7 +262,7 @@ function groupSeedsBySubject(
 					item: weightedShuffle(
 						seedsForSubject.map((seed) => ({
 							item: seed,
-							weight: normalizeWeight(seed.weight) * getSeedModeWeight(seed, modePolicy)
+							weight: normalizeWeight(seed.weight)
 						})),
 						random
 					),
@@ -307,20 +280,21 @@ export function createReferenceFeedPlan(
 ): ReferenceFeedPlan {
 	const policy = options.policy ?? defaultReferenceFeedPolicy;
 	const random = options.random ?? Math.random;
-	const enabledSubjects = getEnabledSubjects(request);
-	const enabledSubjectSet = new Set(enabledSubjects ?? referenceSubjects);
-	const practiceMode = getPracticeMode(request);
-	const modePolicy = getPracticeModePolicy(policy, practiceMode);
+	const enabledSubjects = getEnabledSubjects(request) ?? referenceSubjects;
+	const enabledTopics = getEnabledTopics(request, enabledSubjects) ?? referenceTopics;
+	const enabledSubjectSet = new Set(enabledSubjects);
+	const enabledTopicSet = new Set(enabledTopics);
 	const selectedSearchKeys = new Set<string>();
 	const searches: PlannedProviderSearch[] = [];
-	const seedGroupsBySubject = groupSeedsBySubject(
-		policy.seeds.filter((seed) => enabledSubjectSet.has(seed.primarySubject)),
-		modePolicy,
-		random
-	).map((seeds) => {
+	const seeds = policy.seeds.filter(
+		(seed) =>
+			enabledSubjectSet.has(seed.primarySubject) &&
+			(seed.topic === undefined || enabledTopicSet.has(seed.topic))
+	);
+	const seedGroupsBySubject = groupSeedsBySubject(seeds, random).map((subjectSeeds) => {
 		const subjectSearches: PlannedProviderSearch[] = [];
 
-		for (const seed of seeds) {
+		for (const seed of subjectSeeds) {
 			const compatibleProviders = orderCompatibleProviders(
 				options.providers.filter((provider) =>
 					providerSupportsSubject(provider, seed.primarySubject)

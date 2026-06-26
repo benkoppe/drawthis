@@ -1,12 +1,16 @@
 import { describe, expect, it } from 'vitest';
 import {
 	areReferenceSubjectSelectionsEqual,
-	createReferencePracticeMixSelection,
+	areReferenceTopicSelectionsEqual,
+	createReferenceCategoryFilterSelection,
 	getReferenceSubjectSelectionKey,
+	getReferenceTopicSelectionKey,
 	normalizeReferenceSubjects,
-	parseReferencePracticeMixSelection,
+	normalizeReferenceTopics,
+	parseReferenceCategoryFilterSelection,
 	referenceSubjects,
-	serializeReferencePracticeMixSelection
+	referenceTopics,
+	serializeReferenceCategoryFilterSelection
 } from './taxonomy';
 
 describe('reference taxonomy helpers', () => {
@@ -18,8 +22,20 @@ describe('reference taxonomy helpers', () => {
 		]);
 	});
 
-	it('builds stable selection keys from normalized subjects', () => {
+	it('normalizes topic selections into canonical taxonomy order and enabled subjects', () => {
+		expect(
+			normalizeReferenceTopics(
+				['plants-flowers', 'rooms', 'rooms', 'hands-feet'],
+				['places', 'nature']
+			)
+		).toEqual(['rooms', 'plants-flowers']);
+	});
+
+	it('builds stable selection keys from normalized subjects and topics', () => {
 		expect(getReferenceSubjectSelectionKey(['nature', 'places', 'places'])).toBe(`places\0nature`);
+		expect(getReferenceTopicSelectionKey(['plants-flowers', 'rooms'])).toBe(
+			`rooms\0plants-flowers`
+		);
 	});
 
 	it('compares selections after canonicalization and deduplication', () => {
@@ -27,59 +43,63 @@ describe('reference taxonomy helpers', () => {
 			true
 		);
 		expect(areReferenceSubjectSelectionsEqual(['nature'], ['places', 'nature'])).toBe(false);
+		expect(
+			areReferenceTopicSelectionsEqual(['rooms', 'plants-flowers'], ['plants-flowers', 'rooms'])
+		).toBe(true);
 	});
 
-	it('keeps all-subject selections in taxonomy order', () => {
+	it('keeps all-category selections in taxonomy order', () => {
 		expect(normalizeReferenceSubjects([...referenceSubjects].reverse())).toEqual(referenceSubjects);
+		expect(normalizeReferenceTopics([...referenceTopics].reverse())).toEqual(referenceTopics);
 	});
 
-	it('round-trips preset practice mixes without storing a subject snapshot', () => {
-		const selection = createReferencePracticeMixSelection('balanced', ['nature']);
-		const serialized = serializeReferencePracticeMixSelection(selection);
+	it('round-trips category filters in canonical order', () => {
+		const selection = createReferenceCategoryFilterSelection(
+			['nature', 'places', 'nature'],
+			['plants-flowers', 'rooms', 'rooms']
+		);
 
-		expect(JSON.parse(serialized)).toEqual({ version: 1, mode: 'balanced' });
-		expect(parseReferencePracticeMixSelection(serialized)).toEqual({
-			mode: 'balanced',
-			enabledSubjects: referenceSubjects
+		expect(
+			parseReferenceCategoryFilterSelection(serializeReferenceCategoryFilterSelection(selection))
+		).toEqual({
+			enabledSubjects: ['places', 'nature'],
+			enabledTopics: ['rooms', 'plants-flowers']
 		});
 	});
 
-	it('round-trips custom subject filters in canonical order', () => {
-		const selection = createReferencePracticeMixSelection('custom', ['nature', 'places', 'nature']);
-
+	it('preserves an empty category filter as an invalid UI state', () => {
 		expect(
-			parseReferencePracticeMixSelection(serializeReferencePracticeMixSelection(selection))
-		).toEqual({ mode: 'custom', enabledSubjects: ['places', 'nature'] });
-	});
-
-	it('preserves an empty custom subject selection as an invalid UI state', () => {
-		expect(
-			parseReferencePracticeMixSelection(
-				serializeReferencePracticeMixSelection({ mode: 'custom', enabledSubjects: [] })
+			parseReferenceCategoryFilterSelection(
+				serializeReferenceCategoryFilterSelection({ enabledSubjects: [], enabledTopics: [] })
 			)
-		).toEqual({ mode: 'custom', enabledSubjects: [] });
+		).toEqual({ enabledSubjects: [], enabledTopics: [] });
 	});
 
-	it('drops unsupported persisted custom subjects', () => {
+	it('drops unsupported persisted subjects and topics', () => {
 		expect(
-			parseReferencePracticeMixSelection(
+			parseReferenceCategoryFilterSelection(
 				JSON.stringify({
 					version: 1,
-					mode: 'custom',
-					subjects: ['nature', 'removed-subject', 'places']
+					subjects: ['nature', 'removed-subject', 'places'],
+					topics: ['plants-flowers', 'removed-topic', 'rooms']
 				})
 			)
-		).toEqual({ mode: 'custom', enabledSubjects: ['places', 'nature'] });
+		).toEqual({
+			enabledSubjects: ['places', 'nature'],
+			enabledTopics: ['rooms', 'plants-flowers']
+		});
 	});
 
-	it('ignores invalid persisted practice mix values', () => {
-		expect(parseReferencePracticeMixSelection('not json')).toBeUndefined();
+	it('ignores invalid persisted category filter values', () => {
+		expect(parseReferenceCategoryFilterSelection('not json')).toBeUndefined();
 		expect(
-			parseReferencePracticeMixSelection(JSON.stringify({ version: 2, mode: 'balanced' }))
+			parseReferenceCategoryFilterSelection(
+				JSON.stringify({ version: 2, subjects: [], topics: [] })
+			)
 		).toBeUndefined();
 		expect(
-			parseReferencePracticeMixSelection(
-				JSON.stringify({ version: 1, mode: 'custom', subjects: 'nature' })
+			parseReferenceCategoryFilterSelection(
+				JSON.stringify({ version: 1, subjects: 'nature', topics: [] })
 			)
 		).toBeUndefined();
 	});

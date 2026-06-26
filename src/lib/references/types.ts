@@ -1,6 +1,5 @@
 import type {
 	ReferencePracticeFocus,
-	ReferencePracticeMixMode,
 	ReferenceSceneType,
 	ReferenceSubjectId,
 	ReferenceTopicId,
@@ -56,8 +55,8 @@ export interface DrawingReference {
 }
 
 export interface ReferenceFeedPreferences {
-	practiceMode?: ReferencePracticeMixMode;
 	enabledSubjects?: readonly ReferenceSubjectId[];
+	enabledTopics?: readonly ReferenceTopicId[];
 }
 
 export interface ReferenceFeedContextItem {

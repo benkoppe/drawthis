@@ -9,16 +9,20 @@ const referenceHistoryEntryStoreName = 'referenceHistoryEntries';
 
 const subjectLabels = {
 	people: 'People',
+	animals: 'Animals',
 	objects: 'Objects',
 	places: 'Places',
-	nature: 'Nature'
+	nature: 'Nature',
+	'vehicles-machines': 'Vehicles & Machines'
 } as const;
 
 const subjectImageUrls = {
 	people: '/references/hand-study.svg',
+	animals: '/references/plant-window.svg',
 	objects: '/references/still-life.svg',
 	places: '/references/room-interior.svg',
-	nature: '/references/plant-window.svg'
+	nature: '/references/plant-window.svg',
+	'vehicles-machines': '/references/street-corner.svg'
 } as const;
 
 type TestReferenceSubject = keyof typeof subjectLabels;
@@ -76,21 +80,21 @@ async function getInitialReferenceTitleForSeed(browser: Browser, seed: string): 
 	}
 }
 
-function getPracticeMixMenu(page: Page) {
-	return page.locator('[aria-label="Choose practice mix"]');
+function getCategoryFilterMenu(page: Page) {
+	return page.locator('[aria-label="Limit reference categories"]');
 }
 
-function getPracticeMixButton(page: Page) {
+function getCategoryFilterButton(page: Page) {
 	return page.locator('header button[aria-haspopup="true"]');
 }
 
-function getPracticeMixInput(page: Page, label: string) {
-	return getPracticeMixMenu(page).locator('label').filter({ hasText: label }).locator('input');
+function getCategoryFilterInput(page: Page, label: string) {
+	return getCategoryFilterMenu(page).locator('label').filter({ hasText: label }).locator('input');
 }
 
-async function openPracticeMix(page: Page): Promise<void> {
-	const button = getPracticeMixButton(page);
-	const menu = getPracticeMixMenu(page);
+async function openCategoryFilter(page: Page): Promise<void> {
+	const button = getCategoryFilterButton(page);
+	const menu = getCategoryFilterMenu(page);
 
 	await expect(button).toBeVisible();
 	await expect(async () => {
@@ -100,15 +104,15 @@ async function openPracticeMix(page: Page): Promise<void> {
 }
 
 async function chooseOnlySubject(page: Page, subject: TestReferenceSubject): Promise<void> {
-	await openPracticeMix(page);
-	await getPracticeMixInput(page, 'Custom: all subjects').uncheck();
-	await expect(page.getByRole('button', { name: /no subjects/i })).toBeVisible();
-	await getPracticeMixInput(page, subjectLabels[subject]).check();
+	await openCategoryFilter(page);
+	await getCategoryFilterInput(page, 'All categories').uncheck();
+	await expect(page.getByRole('button', { name: /no categories/i })).toBeVisible();
+	await getCategoryFilterInput(page, subjectLabels[subject]).check();
 
-	await expect(page.getByRole('button', { name: /custom: 1 of 6/i })).toBeVisible();
-	await expect(getPracticeMixInput(page, subjectLabels[subject])).toBeChecked();
+	await expect(page.getByRole('button', { name: subjectLabels[subject] })).toBeVisible();
+	await expect(getCategoryFilterInput(page, subjectLabels[subject])).toBeChecked();
 	await page.keyboard.press('Escape');
-	await expect(getPracticeMixMenu(page)).toBeHidden();
+	await expect(getCategoryFilterMenu(page)).toBeHidden();
 }
 
 async function mockReferenceFeedPosts(page: Page): Promise<unknown[]> {
@@ -397,43 +401,43 @@ test('branches the active tab timeline after Back and subject changes without de
 	expect(sessionTimeline?.entryIds).toEqual(expect.not.arrayContaining(['entry-c', 'entry-d']));
 });
 
-test('allows no selected subjects as an invalid state until a subject is selected', async ({
+test('allows no selected categories as an invalid state until a category is selected', async ({
 	page
 }) => {
 	await page.goto('/');
-	await openPracticeMix(page);
-	await getPracticeMixInput(page, 'Custom: all subjects').uncheck();
+	await openCategoryFilter(page);
+	await getCategoryFilterInput(page, 'All categories').uncheck();
 
-	await expect(page.getByRole('button', { name: /no subjects/i })).toBeVisible();
+	await expect(page.getByRole('button', { name: /no categories/i })).toBeVisible();
 	await expect(page.getByRole('button', { name: 'Next' })).toBeDisabled();
-	await expect(getPracticeMixInput(page, 'Nature')).toBeEnabled();
-	await expect(getPracticeMixInput(page, 'Nature')).not.toBeChecked();
+	await expect(getCategoryFilterInput(page, 'Nature')).toBeEnabled();
+	await expect(getCategoryFilterInput(page, 'Nature')).not.toBeChecked();
 
-	await getPracticeMixInput(page, 'Nature').check();
-	await expect(page.getByRole('button', { name: /custom: 1 of 6/i })).toBeVisible();
+	await getCategoryFilterInput(page, 'Nature').check();
+	await expect(page.getByRole('button', { name: 'Nature' })).toBeVisible();
 	await expect(page.getByRole('button', { name: 'Next' })).toBeEnabled();
 });
 
-test('keeps the practice mix selection after reload', async ({ page }) => {
+test('keeps the category filter selection after reload', async ({ page }) => {
 	await page.goto('/');
 	await chooseOnlySubject(page, 'nature');
 
 	await page.reload();
 
-	await expect(getPracticeMixButton(page)).toHaveText(/custom: 1 of 6/i);
-	await openPracticeMix(page);
-	await expect(getPracticeMixInput(page, 'Nature')).toBeChecked();
-	await expect(getPracticeMixInput(page, 'Places')).not.toBeChecked();
+	await expect(getCategoryFilterButton(page)).toHaveText(/Nature/i);
+	await openCategoryFilter(page);
+	await expect(getCategoryFilterInput(page, 'Nature')).toBeChecked();
+	await expect(getCategoryFilterInput(page, 'Places')).not.toBeChecked();
 });
 
-test('keeps the empty invalid subject selection state after reload', async ({ page }) => {
+test('keeps the empty invalid category selection state after reload', async ({ page }) => {
 	await page.goto('/');
-	await openPracticeMix(page);
-	await getPracticeMixInput(page, 'Custom: all subjects').uncheck();
+	await openCategoryFilter(page);
+	await getCategoryFilterInput(page, 'All categories').uncheck();
 
 	await page.reload();
 
-	await expect(getPracticeMixButton(page)).toHaveText(/no subjects/i);
+	await expect(getCategoryFilterButton(page)).toHaveText(/no categories/i);
 	await expect(page.getByRole('button', { name: 'Next' })).toBeDisabled();
 });
 

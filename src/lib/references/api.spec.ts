@@ -15,7 +15,7 @@ describe('requestReferenceFeed', () => {
 				count: 1,
 				currentReferenceId: 'local:room-interior',
 				recentReferenceIds: ['local:street-corner'],
-				preferences: { practiceMode: 'places-perspective', enabledSubjects: ['places'] }
+				preferences: { enabledSubjects: ['places'], enabledTopics: ['rooms'] }
 			},
 			{ fetch: fetcher, basePath: '/base' }
 		);
@@ -31,7 +31,7 @@ describe('requestReferenceFeed', () => {
 						count: 1,
 						currentReferenceId: 'local:room-interior',
 						recentReferenceIds: ['local:street-corner'],
-						preferences: { practiceMode: 'places-perspective', enabledSubjects: ['places'] }
+						preferences: { enabledSubjects: ['places'], enabledTopics: ['rooms'] }
 					})
 				}
 			]

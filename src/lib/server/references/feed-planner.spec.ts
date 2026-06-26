@@ -237,8 +237,7 @@ describe('createReferenceFeedPlan', () => {
 			supportsSearch: true
 		});
 		const weightedPolicy: ReferenceFeedPolicy = {
-			seeds: testPolicy.seeds.slice(0, 2),
-			practiceModes: [{ mode: 'balanced', subjectWeights: { places: 9, objects: 1 } }]
+			seeds: [testPolicy.seeds[0], { ...testPolicy.seeds[1], weight: 9 }]
 		};
 		const plan = createReferenceFeedPlan(
 			{},
@@ -246,6 +245,16 @@ describe('createReferenceFeedPlan', () => {
 		);
 
 		expect(plan.searches[0]?.primarySubject).toBe('places');
+	});
+
+	it('restricts planned searches to enabled subcategories', () => {
+		const provider = makeProvider({ id: 'search', subjects: ['objects'], supportsSearch: true });
+		const plan = createReferenceFeedPlan(
+			{ preferences: { enabledSubjects: ['objects'], enabledTopics: ['household-objects'] } },
+			{ providers: [provider], policy: testPolicy, searchCount: 1, random: () => 0 }
+		);
+
+		expect(plan.searches.map((search) => search.seed.id)).toEqual(['objects-desk']);
 	});
 
 	it('ignores query-like fields on the public feed request', () => {

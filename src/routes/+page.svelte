@@ -4,7 +4,8 @@
 		appendReferenceHistoryEntry,
 		appendReferenceTimelineEntry,
 		areReferenceSubjectSelectionsEqual,
-		createReferencePracticeMixSelection,
+		areReferenceTopicSelectionsEqual,
+		createReferenceCategoryFilterSelection,
 		createReferenceTimelineEntry,
 		createReferenceTimelineTabId,
 		getLastViewedReferenceHistoryEntry,
@@ -16,11 +17,13 @@
 		mergeRecentReferenceIds,
 		parseRecentReferenceContexts,
 		parseRecentReferenceIds,
-		parseReferencePracticeMixSelection,
+		parseReferenceCategoryFilterSelection,
 		parseReferenceTabTimelineState,
 		normalizeReferenceSubjects,
+		normalizeReferenceTopics,
 		referenceSubjects,
-		referencePracticeMixStorageKey,
+		referenceTopics,
+		referenceCategoryFilterStorageKey,
 		referenceSubjectLabels,
 		referenceTopicLabels,
 		referenceContextHistoryStorageKey,
@@ -31,19 +34,20 @@
 		requestReferenceFeed,
 		serializeRecentReferenceContexts,
 		serializeRecentReferenceIds,
-		serializeReferencePracticeMixSelection,
+		serializeReferenceCategoryFilterSelection,
 		serializeReferenceTabTimelineState,
 		getReferenceSubjectSelectionKey,
+		getReferenceTopicSelectionKey,
 		setLastViewedReferenceHistoryEntryId,
 		toReferenceFeedContextItem,
 		type DrawingReference,
 		type ReferenceSubjectId,
-		type ReferencePracticeMixMode,
+		type ReferenceTopicId,
 		type ReferenceFeedContextItem,
 		type ReferenceTabTimelineState,
 		type ReferenceTimelineEntry
 	} from '$lib/references';
-	import PracticeMixSelector from '$lib/components/PracticeMixSelector.svelte';
+	import CategoryFilter from '$lib/components/CategoryFilter.svelte';
 	import DelayedSpinner from '$lib/components/DelayedSpinner.svelte';
 	import { onMount } from 'svelte';
 	import type { PageData } from './$types';
@@ -53,8 +57,8 @@
 	const initialReferences = data.references;
 
 	let enabledSubjects = $state<ReferenceSubjectId[]>([...referenceSubjects]);
-	let practiceMixMode = $state<ReferencePracticeMixMode>('balanced');
-	let practiceMixStorageIsReady = $state(false);
+	let enabledTopics = $state<ReferenceTopicId[]>([...referenceTopics]);
+	let categoryFilterStorageIsReady = $state(false);
 
 	let currentReference = $state<DrawingReference | undefined>();
 	let referenceQueue = $state<DrawingReference[]>(initialReferences.slice(1));
@@ -69,7 +73,7 @@
 	let isRefillingQueue = $state(false);
 	let errorMessage = $state<string | undefined>();
 	let referenceFeedRequestGeneration = 0;
-	let activePracticeMixKey = getPracticeMixKey('balanced', referenceSubjects);
+	let activeCategoryFilterKey = getCategoryFilterKey(referenceSubjects, referenceTopics);
 	let activeQueueRefillAbortController: AbortController | undefined;
 	let currentImageUrl = $derived(
 		currentReference ? resolveReferenceUrl(currentReference.image.url) : ''
@@ -81,11 +85,14 @@
 	let isAtTimelineTail = $derived(
 		referenceTimelineCursorIndex === referenceTimelineEntries.length - 1
 	);
-	let hasEnabledSubjectSelection = $derived(normalizeReferenceSubjects(enabledSubjects).length > 0);
+	let hasEnabledCategorySelection = $derived(
+		normalizeReferenceSubjects(enabledSubjects).length > 0 &&
+			normalizeReferenceTopics(enabledTopics, enabledSubjects).length > 0
+	);
 	let canGoBack = $derived(isReady && referenceTimelineCursorIndex > 0);
 	let canGoNext = $derived(
 		isReady &&
-			hasEnabledSubjectSelection &&
+			hasEnabledCategorySelection &&
 			(!isAtTimelineTail || referenceQueue.length > 0 || (!isLoadingReference && !isRefillingQueue))
 	);
 	let loadedImageUrl = $state('');
@@ -98,32 +105,50 @@
 
 	$effect(() => {
 		const normalizedEnabledSubjects = normalizeReferenceSubjects(enabledSubjects);
+		const normalizedEnabledTopics = normalizeReferenceTopics(
+			enabledTopics,
+			normalizedEnabledSubjects
+		);
 
 		if (!areReferenceSubjectSelectionsEqual(enabledSubjects, normalizedEnabledSubjects)) {
 			enabledSubjects = normalizedEnabledSubjects;
 			return;
 		}
 
-		writeStoredReferencePracticeMixSelection();
-
-		if (normalizedEnabledSubjects.length === 0) {
-			handleNoSubjectsSelected();
+		if (
+			!areReferenceTopicSelectionsEqual(
+				enabledTopics,
+				normalizedEnabledTopics,
+				normalizedEnabledSubjects
+			)
+		) {
+			enabledTopics = normalizedEnabledTopics;
 			return;
 		}
 
-		const nextPracticeMixKey = getPracticeMixKey(practiceMixMode, normalizedEnabledSubjects);
+		writeStoredReferenceCategoryFilterSelection();
 
-		if (nextPracticeMixKey !== activePracticeMixKey) {
-			activePracticeMixKey = nextPracticeMixKey;
-			handleEnabledSubjectsChanged(normalizedEnabledSubjects);
+		if (normalizedEnabledSubjects.length === 0 || normalizedEnabledTopics.length === 0) {
+			handleNoCategoriesSelected();
+			return;
+		}
+
+		const nextCategoryFilterKey = getCategoryFilterKey(
+			normalizedEnabledSubjects,
+			normalizedEnabledTopics
+		);
+
+		if (nextCategoryFilterKey !== activeCategoryFilterKey) {
+			activeCategoryFilterKey = nextCategoryFilterKey;
+			handleEnabledCategoriesChanged(normalizedEnabledSubjects, normalizedEnabledTopics);
 		}
 	});
 
-	function getPracticeMixKey(
-		mode: ReferencePracticeMixMode,
-		subjects: readonly ReferenceSubjectId[]
+	function getCategoryFilterKey(
+		subjects: readonly ReferenceSubjectId[],
+		topics: readonly ReferenceTopicId[]
 	): string {
-		return `${mode}:${getReferenceSubjectSelectionKey(subjects)}`;
+		return `${getReferenceSubjectSelectionKey(subjects)}:${getReferenceTopicSelectionKey(topics, subjects)}`;
 	}
 
 	function formatReferenceLabel(reference: DrawingReference | undefined): string {
@@ -181,7 +206,7 @@
 	}
 
 	async function initializePracticeState(): Promise<void> {
-		initializeStoredReferencePracticeMixSelection();
+		initializeStoredReferenceCategoryFilterSelection();
 
 		avoidanceReferenceContexts = mergeRecentReferenceContexts(
 			readStoredRecentReferenceContexts(),
@@ -230,31 +255,31 @@
 		}
 	}
 
-	function initializeStoredReferencePracticeMixSelection(): void {
+	function initializeStoredReferenceCategoryFilterSelection(): void {
 		try {
-			const storedSelection = parseReferencePracticeMixSelection(
-				localStorage.getItem(referencePracticeMixStorageKey)
+			const storedSelection = parseReferenceCategoryFilterSelection(
+				localStorage.getItem(referenceCategoryFilterStorageKey)
 			);
 
 			if (storedSelection !== undefined) {
-				practiceMixMode = storedSelection.mode;
 				enabledSubjects = storedSelection.enabledSubjects;
+				enabledTopics = storedSelection.enabledTopics;
 			}
 		} finally {
-			practiceMixStorageIsReady = true;
+			categoryFilterStorageIsReady = true;
 		}
 	}
 
-	function writeStoredReferencePracticeMixSelection(): void {
-		if (!practiceMixStorageIsReady) {
+	function writeStoredReferenceCategoryFilterSelection(): void {
+		if (!categoryFilterStorageIsReady) {
 			return;
 		}
 
 		try {
 			localStorage.setItem(
-				referencePracticeMixStorageKey,
-				serializeReferencePracticeMixSelection(
-					createReferencePracticeMixSelection(practiceMixMode, enabledSubjects)
+				referenceCategoryFilterStorageKey,
+				serializeReferenceCategoryFilterSelection(
+					createReferenceCategoryFilterSelection(enabledSubjects, enabledTopics)
 				)
 			);
 		} catch {
@@ -337,18 +362,25 @@
 		});
 	}
 
-	function isReferenceInEnabledSubjects(
+	function isReferenceInEnabledCategories(
 		reference: DrawingReference,
-		subjects: readonly ReferenceSubjectId[]
+		subjects: readonly ReferenceSubjectId[],
+		topics: readonly ReferenceTopicId[]
 	): boolean {
-		return subjects.includes(reference.taxonomy.primarySubject);
+		return (
+			subjects.includes(reference.taxonomy.primarySubject) &&
+			(reference.taxonomy.topic === undefined || topics.includes(reference.taxonomy.topic))
+		);
 	}
 
-	function filterReferencesByEnabledSubjects(
+	function filterReferencesByEnabledCategories(
 		references: readonly DrawingReference[],
-		subjects: readonly ReferenceSubjectId[]
+		subjects: readonly ReferenceSubjectId[],
+		topics: readonly ReferenceTopicId[]
 	): DrawingReference[] {
-		return references.filter((reference) => isReferenceInEnabledSubjects(reference, subjects));
+		return references.filter((reference) =>
+			isReferenceInEnabledCategories(reference, subjects, topics)
+		);
 	}
 
 	function truncateForwardReferenceTimelineEntries(): void {
@@ -367,18 +399,21 @@
 		isRefillingQueue = false;
 	}
 
-	function handleNoSubjectsSelected(): void {
+	function handleNoCategoriesSelected(): void {
 		cancelActiveReferenceFeedRequests();
-		activePracticeMixKey = getPracticeMixKey(practiceMixMode, []);
+		activeCategoryFilterKey = getCategoryFilterKey([], []);
 		errorMessage = undefined;
 	}
 
-	function handleEnabledSubjectsChanged(subjects: readonly ReferenceSubjectId[]): void {
+	function handleEnabledCategoriesChanged(
+		subjects: readonly ReferenceSubjectId[],
+		topics: readonly ReferenceTopicId[]
+	): void {
 		cancelActiveReferenceFeedRequests();
 		errorMessage = undefined;
 
 		truncateForwardReferenceTimelineEntries();
-		setReferenceQueue(filterReferencesByEnabledSubjects(referenceQueue, subjects));
+		setReferenceQueue(filterReferencesByEnabledCategories(referenceQueue, subjects, topics));
 
 		if (isReady) {
 			void ensureReferenceQueueFilled({ force: true });
@@ -527,7 +562,7 @@
 	}
 
 	async function ensureReferenceQueueFilled(options: { force?: boolean } = {}): Promise<void> {
-		if (isRefillingQueue || !hasEnabledSubjectSelection) {
+		if (isRefillingQueue || !hasEnabledCategorySelection) {
 			return;
 		}
 
@@ -541,7 +576,7 @@
 
 		const requestGeneration = referenceFeedRequestGeneration;
 		const enabledSubjectsSnapshot = normalizeReferenceSubjects(enabledSubjects);
-		const practiceMixModeSnapshot = practiceMixMode;
+		const enabledTopicsSnapshot = normalizeReferenceTopics(enabledTopics, enabledSubjectsSnapshot);
 		const abortController = new AbortController();
 		const currentReferenceId = currentReference?.id;
 
@@ -558,8 +593,8 @@
 					recentReferences: avoidanceReferenceContexts,
 					precedingReferences: getPrecedingReferenceContexts(),
 					preferences: {
-						practiceMode: practiceMixModeSnapshot,
-						enabledSubjects: enabledSubjectsSnapshot
+						enabledSubjects: enabledSubjectsSnapshot,
+						enabledTopics: enabledTopicsSnapshot
 					}
 				},
 				{ fetch, basePath: base, signal: abortController.signal }
@@ -567,16 +602,21 @@
 
 			if (
 				requestGeneration !== referenceFeedRequestGeneration ||
-				practiceMixModeSnapshot !== practiceMixMode ||
-				!areReferenceSubjectSelectionsEqual(enabledSubjectsSnapshot, enabledSubjects)
+				!areReferenceSubjectSelectionsEqual(enabledSubjectsSnapshot, enabledSubjects) ||
+				!areReferenceTopicSelectionsEqual(
+					enabledTopicsSnapshot,
+					enabledTopics,
+					enabledSubjectsSnapshot
+				)
 			) {
 				return;
 			}
 
 			const queuedReferenceIds = new Set(referenceQueue.map((reference) => reference.id));
-			const newReferences = filterReferencesByEnabledSubjects(
+			const newReferences = filterReferencesByEnabledCategories(
 				feed.references,
-				enabledSubjectsSnapshot
+				enabledSubjectsSnapshot,
+				enabledTopicsSnapshot
 			).filter(
 				(reference) => !queuedReferenceIds.has(reference.id) && reference.id !== currentReferenceId
 			);
@@ -603,8 +643,8 @@
 
 	async function loadImmediateFallbackReference(
 		requestGeneration: number,
-		practiceMixModeSnapshot: ReferencePracticeMixMode,
-		enabledSubjectsSnapshot: readonly ReferenceSubjectId[]
+		enabledSubjectsSnapshot: readonly ReferenceSubjectId[],
+		enabledTopicsSnapshot: readonly ReferenceTopicId[]
 	): Promise<DrawingReference | undefined> {
 		const currentReferenceId = currentReference?.id;
 		const feed = await requestReferenceFeed(
@@ -615,8 +655,8 @@
 				recentReferences: avoidanceReferenceContexts,
 				precedingReferences: getPrecedingReferenceContexts(),
 				preferences: {
-					practiceMode: practiceMixModeSnapshot,
-					enabledSubjects: enabledSubjectsSnapshot
+					enabledSubjects: enabledSubjectsSnapshot,
+					enabledTopics: enabledTopicsSnapshot
 				}
 			},
 			{ fetch, basePath: base }
@@ -624,13 +664,21 @@
 
 		if (
 			requestGeneration !== referenceFeedRequestGeneration ||
-			practiceMixModeSnapshot !== practiceMixMode ||
-			!areReferenceSubjectSelectionsEqual(enabledSubjectsSnapshot, enabledSubjects)
+			!areReferenceSubjectSelectionsEqual(enabledSubjectsSnapshot, enabledSubjects) ||
+			!areReferenceTopicSelectionsEqual(
+				enabledTopicsSnapshot,
+				enabledTopics,
+				enabledSubjectsSnapshot
+			)
 		) {
 			return undefined;
 		}
 
-		return filterReferencesByEnabledSubjects(feed.references, enabledSubjectsSnapshot)[0];
+		return filterReferencesByEnabledCategories(
+			feed.references,
+			enabledSubjectsSnapshot,
+			enabledTopicsSnapshot
+		)[0];
 	}
 
 	function showPreviousReference(): void {
@@ -656,10 +704,11 @@
 
 		const previousReference = currentReference;
 		const enabledSubjectsSnapshot = normalizeReferenceSubjects(enabledSubjects);
-		const practiceMixModeSnapshot = practiceMixMode;
-		const subjectSafeQueue = filterReferencesByEnabledSubjects(
+		const enabledTopicsSnapshot = normalizeReferenceTopics(enabledTopics, enabledSubjectsSnapshot);
+		const subjectSafeQueue = filterReferencesByEnabledCategories(
 			referenceQueue,
-			enabledSubjectsSnapshot
+			enabledSubjectsSnapshot,
+			enabledTopicsSnapshot
 		);
 		const [queuedReference, ...remainingQueue] = subjectSafeQueue;
 
@@ -681,8 +730,8 @@
 		try {
 			const nextReference = await loadImmediateFallbackReference(
 				requestGeneration,
-				practiceMixModeSnapshot,
-				enabledSubjectsSnapshot
+				enabledSubjectsSnapshot,
+				enabledTopicsSnapshot
 			);
 
 			if (!nextReference) {
@@ -721,8 +770,8 @@
 				<span class="font-semibold">Draw</span><span class="font-serif text-xl italic">This</span>
 			</span>
 		</p>
-		{#if practiceMixStorageIsReady}
-			<PracticeMixSelector bind:enabledSubjects bind:mode={practiceMixMode} />
+		{#if categoryFilterStorageIsReady}
+			<CategoryFilter bind:enabledSubjects bind:enabledTopics />
 		{/if}
 	</header>
 

@@ -1,17 +1,18 @@
 import {
 	isReferencePracticeFocus,
-	isReferencePracticeMixMode,
 	isReferenceSceneType,
 	isReferenceSubject,
 	isReferenceTopic,
 	normalizeReferencePracticeFocuses,
 	normalizeReferenceSceneTypes,
 	normalizeReferenceSubjects,
+	normalizeReferenceTopics,
 	trimRecentReferenceIds,
 	type ReferenceFeedContextItem,
 	type ReferenceFeedPreferences,
 	type ReferenceFeedRequest,
-	type ReferenceSubjectId
+	type ReferenceSubjectId,
+	type ReferenceTopicId
 } from '$lib/references';
 import { error } from '@sveltejs/kit';
 
@@ -41,6 +42,30 @@ function parseEnabledSubjects(value: unknown): ReferenceSubjectId[] {
 	}
 
 	return normalizeReferenceSubjects(subjects);
+}
+
+function parseEnabledTopics(value: unknown): ReferenceTopicId[] {
+	if (!Array.isArray(value)) {
+		throw error(400, 'preferences.enabledTopics must be an array');
+	}
+
+	if (value.length === 0) {
+		throw error(400, 'preferences.enabledTopics must include at least one topic');
+	}
+
+	const topics: ReferenceTopicId[] = [];
+
+	for (const topic of value) {
+		if (!isReferenceTopic(topic)) {
+			throw error(400, 'topic is not supported');
+		}
+
+		if (!topics.includes(topic)) {
+			topics.push(topic);
+		}
+	}
+
+	return normalizeReferenceTopics(topics);
 }
 
 function parseReferenceFeedContextItems(
@@ -142,16 +167,12 @@ function parsePreferences(value: unknown): ReferenceFeedPreferences {
 
 	const preferences: ReferenceFeedPreferences = {};
 
-	if (value.practiceMode !== undefined) {
-		if (!isReferencePracticeMixMode(value.practiceMode)) {
-			throw error(400, 'preferences.practiceMode is not supported');
-		}
-
-		preferences.practiceMode = value.practiceMode;
-	}
-
 	if (value.enabledSubjects !== undefined) {
 		preferences.enabledSubjects = parseEnabledSubjects(value.enabledSubjects);
+	}
+
+	if (value.enabledTopics !== undefined) {
+		preferences.enabledTopics = parseEnabledTopics(value.enabledTopics);
 	}
 
 	return preferences;

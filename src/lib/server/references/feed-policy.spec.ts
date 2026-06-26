@@ -26,14 +26,4 @@ describe('defaultReferenceFeedPolicy', () => {
 			}
 		}
 	});
-
-	it('keeps practice-mode seed weights pointed at existing seeds', () => {
-		const seedIds = new Set(defaultReferenceFeedPolicy.seeds.map((seed) => seed.id));
-
-		for (const modePolicy of defaultReferenceFeedPolicy.practiceModes ?? []) {
-			for (const seedId of Object.keys(modePolicy.seedWeights ?? {})) {
-				expect(seedIds.has(seedId)).toBe(true);
-			}
-		}
-	});
 });

@@ -1,7 +1,6 @@
 import type {
 	ReferenceOrientation,
 	ReferencePracticeFocus,
-	ReferencePracticeMixMode,
 	ReferenceProviderId,
 	ReferenceSceneType,
 	ReferenceSubjectId,
@@ -23,14 +22,6 @@ export interface ReferenceSearchSeed {
 	orientation?: ReferenceOrientation;
 }
 
-export interface ReferencePracticeModePolicy {
-	mode: ReferencePracticeMixMode;
-	subjectWeights?: Readonly<Partial<Record<ReferenceSubjectId, number>>>;
-	sceneTypeWeights?: Readonly<Partial<Record<ReferenceSceneType, number>>>;
-	practiceFocusWeights?: Readonly<Partial<Record<ReferencePracticeFocus, number>>>;
-	seedWeights?: Readonly<Partial<Record<string, number>>>;
-}
-
 export interface ReferenceProviderPaginationPolicy {
 	initialCursorPageMin: number;
 	initialCursorPageMax: number;
@@ -38,7 +29,6 @@ export interface ReferenceProviderPaginationPolicy {
 
 export interface ReferenceFeedPolicy {
 	seeds: readonly ReferenceSearchSeed[];
-	practiceModes?: readonly ReferencePracticeModePolicy[];
 	providerWeights?: Readonly<Partial<Record<ReferenceProviderId, number>>>;
 	providerPagination?: Readonly<
 		Partial<Record<ReferenceProviderId, ReferenceProviderPaginationPolicy>>
@@ -378,45 +368,5 @@ export const defaultReferenceFeedPolicy: ReferenceFeedPolicy = {
 			initialCursorPageMax: 5
 		}
 	},
-	practiceModes: [
-		{ mode: 'balanced' },
-		{ mode: 'people', subjectWeights: { people: 8 } },
-		{
-			mode: 'places-perspective',
-			subjectWeights: { places: 7, 'vehicles-machines': 3 },
-			practiceFocusWeights: { perspective: 3, construction: 1.5 }
-		},
-		{
-			mode: 'objects-forms',
-			subjectWeights: { objects: 7, 'vehicles-machines': 3 },
-			practiceFocusWeights: { construction: 2, shape: 2, material: 1.5 }
-		},
-		{
-			mode: 'living-things',
-			subjectWeights: { people: 4, animals: 3, nature: 3 },
-			practiceFocusWeights: { gesture: 2, anatomy: 1.5, shape: 1.5 }
-		},
-		{
-			mode: 'quick-warmup',
-			practiceFocusWeights: { gesture: 3, shape: 2, proportion: 1.5 },
-			seedWeights: {
-				'people-action-gesture': 3,
-				'animals-motion': 2,
-				'objects-mug-bottle': 1.5,
-				'nature-potted-plant': 1.5
-			}
-		},
-		{
-			mode: 'value-texture',
-			practiceFocusWeights: { value: 3, texture: 3, material: 2, 'light-shadow': 2 },
-			sceneTypeWeights: { 'close-up': 1.5, 'still-life': 1.5 },
-			seedWeights: {
-				'objects-fabric-clothes': 2,
-				'nature-rocks': 2,
-				'nature-tree-branch': 2,
-				'vehicles-machinery-detail': 1.5
-			}
-		}
-	],
 	seeds: defaultSeeds
 };

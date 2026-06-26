@@ -11,22 +11,25 @@ function expectBadRequest(callback: () => void, message: string): void {
 }
 
 describe('parseReferenceFeedRequest', () => {
-	it('parses enabled subject preferences into canonical order and removes duplicates', () => {
+	it('parses enabled category preferences into canonical order and removes duplicates', () => {
 		expect(
 			parseReferenceFeedRequest({
 				count: 2,
 				currentReferenceId: 'local:room-interior',
 				recentReferenceIds: ['a', 'b'],
 				preferences: {
-					practiceMode: 'places-perspective',
-					enabledSubjects: ['nature', 'places', 'places']
+					enabledSubjects: ['nature', 'places', 'places'],
+					enabledTopics: ['plants-flowers', 'rooms', 'rooms']
 				}
 			})
 		).toEqual({
 			count: 2,
 			currentReferenceId: 'local:room-interior',
 			recentReferenceIds: ['a', 'b'],
-			preferences: { practiceMode: 'places-perspective', enabledSubjects: ['places', 'nature'] }
+			preferences: {
+				enabledSubjects: ['places', 'nature'],
+				enabledTopics: ['rooms', 'plants-flowers']
+			}
 		});
 	});
 
@@ -96,10 +99,10 @@ describe('parseReferenceFeedRequest', () => {
 		);
 	});
 
-	it('rejects unsupported practice modes', () => {
+	it('rejects unsupported enabled topics', () => {
 		expectBadRequest(
-			() => parseReferenceFeedRequest({ preferences: { practiceMode: 'search' } }),
-			'preferences.practiceMode is not supported'
+			() => parseReferenceFeedRequest({ preferences: { enabledTopics: ['landscape'] } }),
+			'topic is not supported'
 		);
 	});
 
@@ -117,13 +120,27 @@ describe('parseReferenceFeedRequest', () => {
 		);
 	});
 
+	it('rejects non-array enabled topics', () => {
+		expectBadRequest(
+			() => parseReferenceFeedRequest({ preferences: { enabledTopics: 'rooms' } }),
+			'preferences.enabledTopics must be an array'
+		);
+	});
+
+	it('rejects empty enabled topic preferences', () => {
+		expectBadRequest(
+			() => parseReferenceFeedRequest({ preferences: { enabledTopics: [] } }),
+			'preferences.enabledTopics must include at least one topic'
+		);
+	});
+
 	it('ignores unknown fields', () => {
 		expect(
 			parseReferenceFeedRequest({
 				query: 'user query',
 				provider: 'external',
-				preferences: { enabledSubjects: ['places'] }
+				preferences: { enabledSubjects: ['places'], enabledTopics: ['rooms'] }
 			})
-		).toEqual({ preferences: { enabledSubjects: ['places'] } });
+		).toEqual({ preferences: { enabledSubjects: ['places'], enabledTopics: ['rooms'] } });
 	});
 });

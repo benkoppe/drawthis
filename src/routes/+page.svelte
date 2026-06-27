@@ -817,8 +817,10 @@
 <main
 	class="mx-auto grid h-[var(--drawthis-viewport-height,100dvh)] w-full max-w-[1200px] grid-cols-1 grid-rows-[auto_minmax(0,1fr)] gap-3 px-3 pt-3 pb-1 sm:p-4"
 >
-	<header class="flex min-w-0 items-center justify-between gap-3">
-		<p class="m-0 flex items-baseline gap-1.5 truncate text-lg tracking-tight text-gray-900">
+	<header class="flex min-w-0 items-center justify-between gap-3 overflow-hidden">
+		<p
+			class="m-0 flex min-w-0 items-baseline gap-1.5 truncate text-lg tracking-tight text-gray-900"
+		>
 			<span aria-hidden="true">✏️</span>
 			<span>
 				<span class="font-semibold">Draw</span><span class="font-serif text-xl italic">This</span>
@@ -841,10 +843,12 @@
 			</div>
 		{:else if currentReference}
 			<div class="grid min-w-0 gap-2 border-b border-gray-200 px-4 py-3" aria-live="polite">
-				<div class="flex items-center justify-between gap-3 max-sm:flex-col max-sm:items-stretch">
+				<div
+					class="flex min-w-0 items-center justify-between gap-3 max-sm:flex-col max-sm:items-stretch"
+				>
 					<h1
 						id="reference-heading"
-						class="m-0 flex min-w-0 items-center gap-1.5 text-lg leading-tight font-semibold"
+						class="m-0 flex min-w-0 items-center gap-1.5 overflow-hidden text-lg leading-tight font-semibold"
 					>
 						<svg
 							class="size-5 shrink-0 text-gray-400"
@@ -859,13 +863,15 @@
 							<path d="M3 12V5a2 2 0 0 1 2-2h7l9 9-9 9-9-9Z" />
 							<circle cx="8" cy="8" r="1.5" fill="currentColor" stroke="none" />
 						</svg>
-						<span class="truncate">{currentReferenceLabel}</span>
+						<span class="min-w-0 flex-1 truncate">{currentReferenceLabel}</span>
 					</h1>
 
-					<div class="flex shrink-0 items-center gap-2 max-sm:grid max-sm:grid-cols-2">
+					<div
+						class="flex min-w-0 shrink-0 items-center gap-2 max-sm:grid max-sm:w-full max-sm:grid-cols-2"
+					>
 						<button
 							type="button"
-							class="min-h-11 cursor-pointer rounded-lg border border-gray-900 bg-white px-4 font-bold text-gray-900 transition-colors hover:bg-gray-100 focus-visible:outline-3 focus-visible:outline-offset-3 focus-visible:outline-blue-600 disabled:cursor-not-allowed disabled:opacity-60 max-sm:w-full"
+							class="min-h-11 min-w-0 cursor-pointer rounded-lg border border-gray-900 bg-white px-4 font-bold text-gray-900 transition-colors hover:bg-gray-100 focus-visible:outline-3 focus-visible:outline-offset-3 focus-visible:outline-blue-600 disabled:cursor-not-allowed disabled:opacity-60 max-sm:w-full"
 							disabled={!canGoBack}
 							onclick={showPreviousReference}
 						>
@@ -874,7 +880,7 @@
 
 						<button
 							type="button"
-							class="min-h-11 cursor-pointer rounded-lg border border-gray-900 bg-gray-900 px-4 font-bold text-white transition-colors hover:bg-gray-700 focus-visible:outline-3 focus-visible:outline-offset-3 focus-visible:outline-blue-600 disabled:cursor-not-allowed disabled:opacity-60 max-sm:w-full"
+							class="min-h-11 min-w-0 cursor-pointer rounded-lg border border-gray-900 bg-gray-900 px-4 font-bold text-white transition-colors hover:bg-gray-700 focus-visible:outline-3 focus-visible:outline-offset-3 focus-visible:outline-blue-600 disabled:cursor-not-allowed disabled:opacity-60 max-sm:w-full"
 							class:cursor-wait={isLoadingReference && isAtTimelineTail}
 							disabled={!canGoNext}
 							onclick={showNextReference}

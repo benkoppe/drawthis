@@ -192,7 +192,7 @@
 <svelte:window onpointerdown={handleWindowPointerDown} onkeydown={handleWindowKeydown} />
 
 <div
-	class="relative"
+	class="relative min-w-0 max-w-[min(18rem,60vw)]"
 	{@attach (node) => {
 		wrapper = node;
 		return () => (wrapper = undefined);
@@ -204,7 +204,7 @@
 			return () => (triggerButton = undefined);
 		}}
 		type="button"
-		class="flex min-h-7 min-w-36 cursor-pointer items-center justify-center gap-1 rounded-md border border-gray-300 bg-white px-2 text-xs font-semibold text-gray-700 transition-colors hover:bg-gray-50 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-600"
+		class="flex min-h-7 min-w-36 max-w-full cursor-pointer items-center justify-center gap-1 rounded-md border border-gray-300 bg-white px-2 text-xs font-semibold text-gray-700 transition-colors hover:bg-gray-50 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-600"
 		class:border-red-500={noneSelected}
 		class:text-red-800={noneSelected}
 		aria-haspopup="true"
@@ -224,9 +224,9 @@
 			<path d="M3 12V5a2 2 0 0 1 2-2h7l9 9-9 9-9-9Z" />
 			<circle cx="8" cy="8" r="1.5" fill="currentColor" stroke="none" />
 		</svg>
-		{summaryLabel}
+		<span class="min-w-0 truncate">{summaryLabel}</span>
 		<svg
-			class="size-3.5 text-gray-400 transition-transform {isOpen ? 'rotate-180' : ''}"
+			class="size-3.5 shrink-0 text-gray-400 transition-transform {isOpen ? 'rotate-180' : ''}"
 			viewBox="0 0 20 20"
 			fill="none"
 			stroke="currentColor"

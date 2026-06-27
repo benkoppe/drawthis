@@ -873,7 +873,7 @@
 <svelte:window onkeydown={handleWindowKeydown} />
 
 <main
-	class="mx-auto grid h-[var(--drawthis-viewport-height,100dvh)] w-full max-w-[1200px] grid-cols-1 grid-rows-[auto_minmax(0,1fr)] gap-3 px-3 pt-3 pb-1 sm:p-4"
+	class="mx-auto grid h-(--drawthis-viewport-height,100dvh) w-full max-w-[1200px] grid-cols-1 grid-rows-[auto_minmax(0,1fr)] gap-3 px-3 pt-3 pb-1 sm:p-4"
 >
 	<header class="flex min-w-0 items-center justify-between gap-3">
 		<p

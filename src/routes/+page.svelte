@@ -817,7 +817,7 @@
 <main
 	class="mx-auto grid h-[var(--drawthis-viewport-height,100dvh)] w-full max-w-[1200px] grid-cols-1 grid-rows-[auto_minmax(0,1fr)] gap-3 px-3 pt-3 pb-1 sm:p-4"
 >
-	<header class="flex min-w-0 items-center justify-between gap-3 overflow-hidden">
+	<header class="flex min-w-0 items-center justify-between gap-3">
 		<p
 			class="m-0 flex min-w-0 items-baseline gap-1.5 truncate text-lg tracking-tight text-gray-900"
 		>
@@ -896,7 +896,7 @@
 			</div>
 
 			<figure class="m-0 grid min-h-0 min-w-0 grid-cols-1 grid-rows-[minmax(0,1fr)_auto]">
-				<div class="relative min-h-0 bg-[#f7f7f4]">
+				<div class="relative min-h-0 bg-[#f9f9f9]">
 					<img
 						class="h-full w-full object-contain transition-opacity duration-200"
 						class:opacity-0={!isImageLoaded}

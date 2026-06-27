@@ -2,12 +2,20 @@
 @plugin '@tailwindcss/typography';
 
 @layer base {
-	html {
-		height: 100%;
+	:root {
+		--drawthis-viewport-height: 100dvh;
+	}
+
+	html,
+	body {
+		min-height: var(--drawthis-viewport-height);
+	}
+
+	button {
+		touch-action: manipulation;
 	}
 
 	body {
-		min-height: 100%;
 		margin: 0;
 		background-color: #f7f7f4;
 		color: #111827;

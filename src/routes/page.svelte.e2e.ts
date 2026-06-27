@@ -27,6 +27,42 @@ const subjectImageUrls = {
 
 type TestReferenceSubject = keyof typeof subjectLabels;
 
+type CapturedRybbitEvent = {
+	name: string;
+	properties: Record<string, string | number>;
+};
+
+async function installRybbitEventCapture(page: Page): Promise<void> {
+	await page.addInitScript(() => {
+		(window as unknown as Window & { __rybbitEvents: CapturedRybbitEvent[] }).__rybbitEvents = [];
+	});
+
+	await page.route('https://rybbit.thekoppe.com/api/script.js', async (route) => {
+		await route.fulfill({
+			contentType: 'application/javascript',
+			body: `
+				window.rybbit = {
+					pageview() {},
+					event(name, properties) {
+						window.__rybbitEvents.push({ name, properties: properties ?? {} });
+					},
+					onReady(callback) {
+						callback(window.rybbit);
+					}
+				};
+			`
+		});
+	});
+}
+
+async function readCapturedRybbitEvents(page: Page): Promise<CapturedRybbitEvent[]> {
+	return await page.evaluate(
+		() =>
+			(window as unknown as Window & { __rybbitEvents?: CapturedRybbitEvent[] }).__rybbitEvents ??
+			[]
+	);
+}
+
 function makeE2eReference(
 	subject: TestReferenceSubject,
 	title: string,
@@ -347,6 +383,52 @@ test('advances through drawing references and restores per-tab reference navigat
 	await expect(referenceDescription).toHaveText(secondReferenceTitle);
 	await expect(referenceImage).toBeVisible();
 	await expect(backButton).toBeEnabled();
+});
+
+test('tracks one Rybbit event for each unique image viewed by pressing Next', async ({ page }) => {
+	await installRybbitEventCapture(page);
+	await page.goto('/');
+
+	const referenceDescription = page.getByTestId('reference-description');
+	const referenceImage = page.getByRole('img');
+	const backButton = page.getByRole('button', { name: 'Back' });
+	const nextButton = page.getByRole('button', { name: 'Next' });
+
+	await expect(referenceDescription).toBeVisible();
+	await expect(referenceImage).toBeVisible();
+	expect(await readCapturedRybbitEvents(page)).toEqual([]);
+
+	const firstReferenceTitle = (await referenceDescription.textContent()) ?? '';
+
+	await nextButton.click();
+	await expect(referenceDescription).not.toHaveText(firstReferenceTitle);
+	await expect(referenceImage).toBeVisible();
+
+	await expect
+		.poll(async () => await readCapturedRybbitEvents(page))
+		.toMatchObject([
+			{
+				name: 'reference_image_viewed',
+				properties: {
+					reference_id: expect.any(String),
+					image_url: expect.any(String),
+					provider_id: expect.any(String),
+					provider_reference_id: expect.any(String),
+					subject: expect.any(String),
+					source_name: expect.any(String)
+				}
+			}
+		]);
+
+	const eventsAfterFirstNext = await readCapturedRybbitEvents(page);
+	const secondReferenceTitle = (await referenceDescription.textContent()) ?? '';
+
+	await backButton.click();
+	await expect(referenceDescription).toHaveText(firstReferenceTitle);
+	await nextButton.click();
+	await expect(referenceDescription).toHaveText(secondReferenceTitle);
+
+	await expect.poll(async () => await readCapturedRybbitEvents(page)).toEqual(eventsAfterFirstNext);
 });
 
 test('supports keyboard shortcuts for previous and next reference navigation', async ({ page }) => {

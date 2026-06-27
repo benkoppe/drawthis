@@ -51,9 +51,11 @@
 		type ReferenceTabTimelineState,
 		type ReferenceTimelineEntry
 	} from '$lib/references';
+	import { trackReferenceImageViewed } from '$lib/analytics/rybbit';
 	import CategoryFilter from '$lib/components/CategoryFilter.svelte';
 	import DelayedSpinner from '$lib/components/DelayedSpinner.svelte';
 	import { onMount } from 'svelte';
+	import { SvelteSet } from 'svelte/reactivity';
 	import type { PageData } from './$types';
 
 	let { data }: { data: PageData } = $props();
@@ -84,9 +86,12 @@
 			: formatReferenceFeedErrorMessage(initialFeedErrorMessage)
 	);
 	let referenceFeedRequestGeneration = 0;
+	let pendingNextViewedReference = $state<DrawingReference | undefined>();
 	let activeCategoryFilterKey = getCategoryFilterKey(referenceSubjects, referenceTopics);
 	let activeQueueRefillAbortController: AbortController | undefined;
 	let activeImmediateReferenceAbortController: AbortController | undefined;
+	const trackedNextViewedImageUrls = new SvelteSet<string>();
+	const successfullyLoadedImageUrls = new SvelteSet<string>();
 	let currentImageUrl = $derived(
 		currentReference ? resolveReferenceUrl(currentReference.image.url) : ''
 	);
@@ -113,6 +118,10 @@
 
 	onMount(() => {
 		void initializePracticeState();
+	});
+
+	$effect(() => {
+		flushPendingNextViewedReferenceAnalytics();
 	});
 
 	$effect(() => {
@@ -256,6 +265,46 @@
 
 	function resolveReferenceUrl(url: string): string {
 		return url.startsWith('/') ? asset(url) : url;
+	}
+
+	function scheduleNextViewedReferenceAnalytics(reference: DrawingReference): void {
+		const imageUrl = resolveReferenceUrl(reference.image.url);
+
+		if (trackedNextViewedImageUrls.has(imageUrl)) {
+			return;
+		}
+
+		pendingNextViewedReference = reference;
+		flushPendingNextViewedReferenceAnalytics();
+	}
+
+	function flushPendingNextViewedReferenceAnalytics(): void {
+		const reference = pendingNextViewedReference;
+
+		if (reference === undefined || reference.id !== currentReference?.id) {
+			return;
+		}
+
+		const imageUrl = resolveReferenceUrl(reference.image.url);
+
+		if (!successfullyLoadedImageUrls.has(imageUrl) || trackedNextViewedImageUrls.has(imageUrl)) {
+			return;
+		}
+
+		trackedNextViewedImageUrls.add(imageUrl);
+		pendingNextViewedReference = undefined;
+		trackReferenceImageViewed(reference, imageUrl);
+	}
+
+	function handleCurrentImageLoad(): void {
+		loadedImageUrl = currentImageUrl;
+
+		if (currentImageUrl.length === 0) {
+			return;
+		}
+
+		successfullyLoadedImageUrls.add(currentImageUrl);
+		flushPendingNextViewedReferenceAnalytics();
 	}
 
 	function readStoredRecentReferenceIds(): string[] {
@@ -527,7 +576,10 @@
 		await rememberLastViewedTimelineEntry();
 	}
 
-	function showTimelineEntry(index: number): void {
+	function showTimelineEntry(
+		index: number,
+		options: { trackNextViewedImage?: boolean } = {}
+	): void {
 		const timelineEntry = referenceTimelineEntries[index];
 
 		if (timelineEntry === undefined) {
@@ -538,6 +590,10 @@
 		currentReference = timelineEntry.reference;
 		persistReferenceTimeline();
 		void rememberLastViewedTimelineEntry();
+
+		if (options.trackNextViewedImage === true) {
+			scheduleNextViewedReferenceAnalytics(timelineEntry.reference);
+		}
 	}
 
 	function getPrecedingReferenceContexts(
@@ -746,7 +802,7 @@
 				forwardReference !== undefined &&
 				referenceMatchesCategorySelection(forwardReference, selectionSnapshot)
 			) {
-				showTimelineEntry(referenceTimelineCursorIndex + 1);
+				showTimelineEntry(referenceTimelineCursorIndex + 1, { trackNextViewedImage: true });
 				return;
 			}
 
@@ -759,6 +815,7 @@
 
 		if (queuedReference !== undefined) {
 			await appendDisplayedReferenceToTimeline(queuedReference);
+			scheduleNextViewedReferenceAnalytics(queuedReference);
 			setReferenceQueue(remainingQueue, selectionSnapshot.key);
 			rememberAvoidanceReferences([previousReference, queuedReference]);
 			void ensureReferenceQueueFilled();
@@ -786,6 +843,7 @@
 			}
 
 			await appendDisplayedReferenceToTimeline(nextReference);
+			scheduleNextViewedReferenceAnalytics(nextReference);
 			rememberAvoidanceReferences([previousReference, nextReference]);
 			void ensureReferenceQueueFilled();
 		} catch (cause) {
@@ -902,7 +960,7 @@
 						class:opacity-0={!isImageLoaded}
 						src={currentImageUrl}
 						alt={currentReference.image.alt}
-						onload={() => (loadedImageUrl = currentImageUrl)}
+						onload={handleCurrentImageLoad}
 						onerror={() => (loadedImageUrl = currentImageUrl)}
 					/>
 
